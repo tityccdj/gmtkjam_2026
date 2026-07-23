@@ -616,6 +616,10 @@ MonoBehaviour:
   elementMap:
     panelPlayer: {fileID: 1554682283}
     panelEnemy: {fileID: 1615564645}
+  boardRows: 12
+  boardColumns: 12
+  maxBoardPixelSize: 482
+  orbCellGap: 5
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

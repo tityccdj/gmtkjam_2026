@@ -77,11 +77,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         public static BoardMove Invalid => new BoardMove(-1, -1, -1, -1);
     }
 
-    private const int Rows = 6;
-    private const int Columns = 6;
     private const float TurnDuration = 10f;
-    private const float CellSize = 72f;
-    private const float CellGap = 5f;
+    private const int BoardPadding = 13;
+    private const float MinOrbCellSize = 26f;
+    private const float MaxOrbCellSize = 78f;
 
     private static readonly Color[] OrbColors =
     {
@@ -97,7 +96,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         "ATTACK", "MANA", "HEAL", "SHIELD", "SPECIAL"
     };
 
-    private readonly OrbView[,] board = new OrbView[Rows, Columns];
+    private OrbView[,] board;
     private readonly Fighter player = new Fighter("PLAYER");
     private readonly Fighter cpu = new Fighter("CPU");
     private readonly List<TMP_Text> playerPendingTexts = new List<TMP_Text>();
@@ -106,6 +105,14 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [Header("Game Mode")]
     [SerializeField] private bool playerVsPlayer = false;
     [SerializeField] private SceneElementMap elementMap = new SceneElementMap();
+
+    [Header("Board Size")]
+    [SerializeField] private int boardRows = 10;
+    [SerializeField] private int boardColumns = 10;
+    [SerializeField] private float maxBoardPixelSize = 482f;
+    [SerializeField] private float orbCellGap = 5f;
+
+    private float orbCellSize;
 
     private Sprite circleSprite;
     private Sprite[] selectionSprites;
@@ -163,6 +170,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
         selectionSprites = Resources.LoadAll<Sprite>("sprites/selection");
         Array.Sort(selectionSprites, (left, right) => string.CompareOrdinal(left.name, right.name));
+
+        boardRows = Mathf.Max(3, boardRows);
+        boardColumns = Mathf.Max(3, boardColumns);
+        board = new OrbView[boardRows, boardColumns];
+        int maxBoardDimension = Mathf.Max(boardRows, boardColumns);
+        orbCellSize = Mathf.Clamp(
+            (maxBoardPixelSize - BoardPadding * 2f - orbCellGap * (maxBoardDimension - 1)) / maxBoardDimension,
+            MinOrbCellSize,
+            MaxOrbCellSize);
 
         ResolveElementMap();
         EnsureEventSystem();
@@ -267,18 +283,21 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         RectTransform root = canvasObject.GetComponent<RectTransform>();
         Stretch(root);
 
+        float boardWidth = boardColumns * orbCellSize + orbCellGap * (boardColumns - 1) + BoardPadding * 2f;
+        float boardHeight = boardRows * orbCellSize + orbCellGap * (boardRows - 1) + BoardPadding * 2f;
+
         boardShell = CreatePanel(root, "Board Element", Color.clear);
-        SetRect(boardShell, new Vector2(0.5f, 0.50f), new Vector2(482f, 482f), Vector2.zero);
+        SetRect(boardShell, new Vector2(0.5f, 0.50f), new Vector2(boardWidth, boardHeight), Vector2.zero);
 
         boardRoot = CreatePanel(boardShell, "Orb Grid", new Color(0.01f, 0.025f, 0.055f, 0.68f));
-        SetRect(boardRoot, new Vector2(0.5f, 0.5f), new Vector2(482f, 482f), Vector2.zero);
+        SetRect(boardRoot, new Vector2(0.5f, 0.5f), new Vector2(boardWidth, boardHeight), Vector2.zero);
 
         GridLayoutGroup grid = boardRoot.gameObject.AddComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(CellSize, CellSize);
-        grid.spacing = new Vector2(CellGap, CellGap);
-        grid.padding = new RectOffset(13, 13, 13, 13);
+        grid.cellSize = new Vector2(orbCellSize, orbCellSize);
+        grid.spacing = new Vector2(orbCellGap, orbCellGap);
+        grid.padding = new RectOffset(BoardPadding, BoardPadding, BoardPadding, BoardPadding);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        grid.constraintCount = Columns;
+        grid.constraintCount = boardColumns;
         grid.childAlignment = TextAnchor.MiddleCenter;
 
         CreateHeader(root);
@@ -409,9 +428,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void FillInitialBoard()
     {
-        for (int row = 0; row < Rows; row++)
+        for (int row = 0; row < boardRows; row++)
         {
-            for (int column = 0; column < Columns; column++)
+            for (int column = 0; column < boardColumns; column++)
             {
                 OrbType type;
                 do
@@ -570,8 +589,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             {
                 nextNavigationTime = Time.unscaledTime + 0.16f;
                 MoveFocusTo(
-                    Mathf.Clamp(cursorRow - direction.y, 0, Rows - 1),
-                    Mathf.Clamp(cursorColumn + direction.x, 0, Columns - 1));
+                    Mathf.Clamp(cursorRow - direction.y, 0, boardRows - 1),
+                    Mathf.Clamp(cursorColumn + direction.x, 0, boardColumns - 1));
             }
         }
 
@@ -620,12 +639,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
     }
 
-    private static void ShowFrameAt(RectTransform frame, int row, int column)
+    private void ShowFrameAt(RectTransform frame, int row, int column)
     {
-        float step = CellSize + CellGap;
+        float step = orbCellSize + orbCellGap;
         frame.anchoredPosition = new Vector2(
-            (column - (Columns - 1) * 0.5f) * step,
-            ((Rows - 1) * 0.5f - row) * step);
+            (column - (boardColumns - 1) * 0.5f) * step,
+            ((boardRows - 1) * 0.5f - row) * step);
         frame.gameObject.SetActive(true);
     }
 
@@ -634,7 +653,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         GameObject frameObject = new GameObject(name, typeof(RectTransform));
         frameObject.transform.SetParent(parent, false);
         RectTransform frame = frameObject.GetComponent<RectTransform>();
-        SetRect(frame, new Vector2(0.5f, 0.5f), new Vector2(82f, 82f), Vector2.zero);
+        float frameSize = orbCellSize + 10f;
+        SetRect(frame, new Vector2(0.5f, 0.5f), new Vector2(frameSize, frameSize), Vector2.zero);
 
         Vector2[] anchors =
         {
@@ -643,6 +663,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             new Vector2(0f, 0f),
             new Vector2(1f, 0f)
         };
+        float cornerSize = Mathf.Clamp(orbCellSize * 0.33f, 16f, 24f);
         for (int i = 0; i < 4; i++)
         {
             Sprite sprite = selectionSprites != null && selectionSprites.Length > i
@@ -655,7 +676,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             rect.anchorMin = anchors[i];
             rect.anchorMax = anchors[i];
             rect.pivot = anchors[i];
-            rect.sizeDelta = new Vector2(24f, 24f);
+            rect.sizeDelta = new Vector2(cornerSize, cornerSize);
             rect.anchoredPosition = Vector2.zero;
         }
         return frame;
@@ -852,12 +873,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         HashSet<OrbView> found = new HashSet<OrbView>();
 
-        for (int row = 0; row < Rows; row++)
+        for (int row = 0; row < boardRows; row++)
         {
             int runStart = 0;
-            for (int column = 1; column <= Columns; column++)
+            for (int column = 1; column <= boardColumns; column++)
             {
-                if (column < Columns && board[row, column].Type == board[row, runStart].Type)
+                if (column < boardColumns && board[row, column].Type == board[row, runStart].Type)
                 {
                     continue;
                 }
@@ -873,12 +894,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             }
         }
 
-        for (int column = 0; column < Columns; column++)
+        for (int column = 0; column < boardColumns; column++)
         {
             int runStart = 0;
-            for (int row = 1; row <= Rows; row++)
+            for (int row = 1; row <= boardRows; row++)
             {
-                if (row < Rows && board[row, column].Type == board[runStart, column].Type)
+                if (row < boardRows && board[row, column].Type == board[runStart, column].Type)
                 {
                     continue;
                 }
@@ -928,10 +949,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void CollapseBoard()
     {
-        for (int column = 0; column < Columns; column++)
+        for (int column = 0; column < boardColumns; column++)
         {
             List<OrbType> survivors = new List<OrbType>();
-            for (int row = Rows - 1; row >= 0; row--)
+            for (int row = boardRows - 1; row >= 0; row--)
             {
                 if (board[row, column].Rect.localScale.x > 0.5f)
                 {
@@ -940,7 +961,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             }
 
             int survivorIndex = 0;
-            for (int row = Rows - 1; row >= 0; row--)
+            for (int row = boardRows - 1; row >= 0; row--)
             {
                 if (survivorIndex < survivors.Count)
                 {
@@ -958,9 +979,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void RefillBoard()
     {
-        for (int row = 0; row < Rows; row++)
+        for (int row = 0; row < boardRows; row++)
         {
-            for (int column = 0; column < Columns; column++)
+            for (int column = 0; column < boardColumns; column++)
             {
                 OrbView orb = board[row, column];
                 if (orb.Rect.localScale.x > 0.5f)
@@ -1171,15 +1192,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         int bestScore = int.MinValue;
         List<BoardMove> bestMoves = new List<BoardMove>();
 
-        for (int row = 0; row < Rows; row++)
+        for (int row = 0; row < boardRows; row++)
         {
-            for (int column = 0; column < Columns; column++)
+            for (int column = 0; column < boardColumns; column++)
             {
-                if (column + 1 < Columns)
+                if (column + 1 < boardColumns)
                 {
                     ScoreCpuMove(row, column, row, column + 1, ref bestScore, bestMoves);
                 }
-                if (row + 1 < Rows)
+                if (row + 1 < boardRows)
                 {
                     ScoreCpuMove(row, column, row + 1, column, ref bestScore, bestMoves);
                 }
@@ -1239,9 +1260,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void ShuffleBoard()
     {
-        for (int row = 0; row < Rows; row++)
+        for (int row = 0; row < boardRows; row++)
         {
-            for (int column = 0; column < Columns; column++)
+            for (int column = 0; column < boardColumns; column++)
             {
                 board[row, column].Type = (OrbType)UnityEngine.Random.Range(0, OrbColors.Length);
                 board[row, column].Rect.localScale = Vector3.one;
