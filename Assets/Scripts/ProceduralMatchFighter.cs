@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -12,18 +11,12 @@ using UnityEngine.InputSystem.UI;
 #endif
 
 /// <summary>
-/// Self-contained prototype for the Procedural scene.
-/// It builds the board and battle HUD at runtime so the arena artwork can keep changing.
+/// Controller for the Procedural scene's match-3 battle. The board, HUD, and fighter
+/// panels are scene-authored (UIBattleHud/UIBattleBoard/UIFighterPanel); this script
+/// only owns match rules, turn/CPU logic, and input.
 /// </summary>
 public sealed class ProceduralMatchFighter : MonoBehaviour
 {
-    [Serializable]
-    private sealed class SceneElementMap
-    {
-        public Transform panelPlayer;
-        public Transform panelEnemy;
-    }
-
     private enum OrbType
     {
         Red,
@@ -77,10 +70,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         public static BoardMove Invalid => new BoardMove(-1, -1, -1, -1);
     }
 
+    private const int Rows = 6;
+    private const int Columns = 6;
     private const float TurnDuration = 10f;
-    private const int BoardPadding = 13;
-    private const float MinOrbCellSize = 26f;
-    private const float MaxOrbCellSize = 78f;
+    private const float CellSize = 72f;
+    private const float CellGap = 5f;
 
     private static readonly Color[] OrbColors =
     {
@@ -91,42 +85,22 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         new Color(0.72f, 0.30f, 1f)
     };
 
-    private static readonly string[] OrbNames =
-    {
-        "ATTACK", "MANA", "HEAL", "SHIELD", "SPECIAL"
-    };
+    private static readonly string[] ShortNames = { "ATK", "MP", "HP", "SH", "SP" };
 
-    private OrbView[,] board;
+    private readonly OrbView[,] board = new OrbView[Rows, Columns];
     private readonly Fighter player = new Fighter("PLAYER");
     private readonly Fighter cpu = new Fighter("CPU");
-    private readonly List<TMP_Text> playerPendingTexts = new List<TMP_Text>();
-    private readonly List<TMP_Text> cpuPendingTexts = new List<TMP_Text>();
 
     [Header("Game Mode")]
     [SerializeField] private bool playerVsPlayer = false;
-    [SerializeField] private SceneElementMap elementMap = new SceneElementMap();
 
-    [Header("Board Size")]
-    [SerializeField] private int boardRows = 10;
-    [SerializeField] private int boardColumns = 10;
-    [SerializeField] private float maxBoardPixelSize = 482f;
-    [SerializeField] private float orbCellGap = 5f;
-
-    private float orbCellSize;
+    [Header("UI")]
+    [SerializeField] private UIBattleHud hud;
+    [SerializeField] private UIBattleBoard battleBoard;
+    [SerializeField] private UIFighterPanel playerPanel;
+    [SerializeField] private UIFighterPanel enemyPanel;
 
     private Sprite circleSprite;
-    private Sprite[] selectionSprites;
-    private RectTransform boardShell;
-    private RectTransform boardRoot;
-    private RectTransform focusFrame;
-    private TMP_Text timerText;
-    private TMP_Text turnText;
-    private TMP_Text messageText;
-    private TMP_Text hookText;
-    private TMP_Text playerStatsText;
-    private TMP_Text cpuStatsText;
-    private Image playerHealthFill;
-    private Image cpuHealthFill;
     private OrbView selectedOrb;
     private OrbView mouseHoverOrb;
     private bool inputReady;
@@ -142,19 +116,6 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private bool IsHumanTurn => playerTurn || playerVsPlayer;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static void CreateForProceduralScene()
-    {
-        if (SceneManager.GetActiveScene().name != "Procedural" ||
-            FindAnyObjectByType<ProceduralMatchFighter>() != null)
-        {
-            return;
-        }
-
-        GameObject host = new GameObject(nameof(ProceduralMatchFighter));
-        host.AddComponent<ProceduralMatchFighter>();
-    }
-
     private void Awake()
     {
         if (playerVsPlayer)
@@ -168,21 +129,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             circleSprite = sprites[0];
         }
-        selectionSprites = Resources.LoadAll<Sprite>("sprites/selection");
-        Array.Sort(selectionSprites, (left, right) => string.CompareOrdinal(left.name, right.name));
 
-        boardRows = Mathf.Max(3, boardRows);
-        boardColumns = Mathf.Max(3, boardColumns);
-        board = new OrbView[boardRows, boardColumns];
-        int maxBoardDimension = Mathf.Max(boardRows, boardColumns);
-        orbCellSize = Mathf.Clamp(
-            (maxBoardPixelSize - BoardPadding * 2f - orbCellGap * (maxBoardDimension - 1)) / maxBoardDimension,
-            MinOrbCellSize,
-            MaxOrbCellSize);
-
-        ResolveElementMap();
-        EnsureEventSystem();
-        BuildInterface();
         FillInitialBoard();
         PrepareForInput();
     }
@@ -239,198 +186,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
     }
 
-    private void ResolveElementMap()
-    {
-        if (elementMap.panelPlayer == null)
-        {
-            GameObject panel = GameObject.Find("PanelPlayer");
-            elementMap.panelPlayer = panel != null ? panel.transform : null;
-        }
-        if (elementMap.panelEnemy == null)
-        {
-            GameObject panel = GameObject.Find("Panelenemy");
-            elementMap.panelEnemy = panel != null ? panel.transform : null;
-        }
-    }
-
-    private void EnsureEventSystem()
-    {
-        if (EventSystem.current != null)
-        {
-            return;
-        }
-
-        GameObject eventSystemObject = new GameObject("EventSystem", typeof(EventSystem));
-#if ENABLE_INPUT_SYSTEM
-        eventSystemObject.AddComponent<InputSystemUIInputModule>();
-#else
-        eventSystemObject.AddComponent<StandaloneInputModule>();
-#endif
-    }
-
-    private void BuildInterface()
-    {
-        GameObject canvasObject = new GameObject("Match Fighter HUD", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-        Canvas canvas = canvasObject.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 20;
-
-        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1536f, 1024f);
-        scaler.matchWidthOrHeight = 0.5f;
-
-        RectTransform root = canvasObject.GetComponent<RectTransform>();
-        Stretch(root);
-
-        float boardWidth = boardColumns * orbCellSize + orbCellGap * (boardColumns - 1) + BoardPadding * 2f;
-        float boardHeight = boardRows * orbCellSize + orbCellGap * (boardRows - 1) + BoardPadding * 2f;
-
-        boardShell = CreatePanel(root, "Board Element", Color.clear);
-        SetRect(boardShell, new Vector2(0.5f, 0.50f), new Vector2(boardWidth, boardHeight), Vector2.zero);
-
-        boardRoot = CreatePanel(boardShell, "Orb Grid", new Color(0.01f, 0.025f, 0.055f, 0.68f));
-        SetRect(boardRoot, new Vector2(0.5f, 0.5f), new Vector2(boardWidth, boardHeight), Vector2.zero);
-
-        GridLayoutGroup grid = boardRoot.gameObject.AddComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(orbCellSize, orbCellSize);
-        grid.spacing = new Vector2(orbCellGap, orbCellGap);
-        grid.padding = new RectOffset(BoardPadding, BoardPadding, BoardPadding, BoardPadding);
-        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-        grid.constraintCount = boardColumns;
-        grid.childAlignment = TextAnchor.MiddleCenter;
-
-        CreateHeader(root);
-        CreateMappedFighterHud(elementMap.panelPlayer, player, true);
-        CreateMappedFighterHud(elementMap.panelEnemy, cpu, false);
-
-        messageText = CreateText(root, "Battle Message", "", 26, TextAnchor.MiddleCenter, Color.white);
-        SetRect(messageText.rectTransform, new Vector2(0.5f, 0.115f), new Vector2(700f, 48f), Vector2.zero);
-
-        hookText = CreateText(
-            root,
-            "Hook",
-            "EVERY 10 SECONDS, DESTINY IS DECIDED.",
-            18,
-            TextAnchor.MiddleCenter,
-            new Color(1f, 0.88f, 0.35f));
-        hookText.fontStyle = FontStyles.Bold;
-        SetRect(hookText.rectTransform, new Vector2(0.5f, 0.065f), new Vector2(760f, 36f), Vector2.zero);
-
-        focusFrame = CreateSelectionFrame(boardShell, "Selection Cursor", Color.white);
-        focusFrame.gameObject.SetActive(false);
-    }
-
-    private void CreateHeader(RectTransform root)
-    {
-        turnText = CreateText(root, "Turn", "PLAYER TURN", 25, TextAnchor.MiddleCenter, Color.white);
-        turnText.fontStyle = FontStyles.Bold;
-        SetRect(turnText.rectTransform, new Vector2(0.5f, 0.945f), new Vector2(400f, 42f), Vector2.zero);
-
-        timerText = CreateText(root, "Countdown", "10.0", 58, TextAnchor.MiddleCenter, Color.white);
-        timerText.fontStyle = FontStyles.Bold;
-        timerText.enableAutoSizing = true;
-        timerText.fontSizeMin = 30;
-        timerText.fontSizeMax = 58;
-        SetRect(timerText.rectTransform, new Vector2(0.5f, 0.885f), new Vector2(190f, 78f), Vector2.zero);
-    }
-
-    private void CreateMappedFighterHud(Transform mappedPanel, Fighter fighter, bool isPlayer)
-    {
-        if (mappedPanel == null)
-        {
-            Debug.LogError($"Missing Hierarchy element for {fighter.Name} stats.");
-            return;
-        }
-
-        Color accent = isPlayer
-            ? new Color(0.22f, 0.72f, 1f)
-            : new Color(1f, 0.27f, 0.30f);
-        SpriteRenderer panelRenderer = mappedPanel.GetComponent<SpriteRenderer>();
-        if (panelRenderer != null)
-        {
-            panelRenderer.color = isPlayer
-                ? new Color(0.012f, 0.055f, 0.11f, 0.94f)
-                : new Color(0.14f, 0.012f, 0.02f, 0.94f);
-            panelRenderer.sortingOrder = 2;
-        }
-
-        GameObject canvasObject = new GameObject(
-            fighter.Name + " Stats Element",
-            typeof(RectTransform),
-            typeof(Canvas),
-            typeof(GraphicRaycaster));
-        canvasObject.transform.SetParent(mappedPanel, false);
-        Canvas canvas = canvasObject.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.WorldSpace;
-        canvas.overrideSorting = true;
-        canvas.sortingOrder = 30;
-
-        RectTransform panel = canvasObject.GetComponent<RectTransform>();
-        panel.sizeDelta = new Vector2(288f, 205f);
-        panel.localPosition = new Vector3(0f, 0f, -0.05f);
-        panel.localRotation = Quaternion.identity;
-        Vector3 scale = mappedPanel.lossyScale;
-        panel.localScale = new Vector3(
-            0.01f / Mathf.Max(0.001f, Mathf.Abs(scale.x)),
-            0.01f / Mathf.Max(0.001f, Mathf.Abs(scale.y)),
-            1f);
-
-        TMP_Text name = CreateText(panel, "Name", fighter.Name, 28, TextAnchor.MiddleCenter, accent);
-        name.fontStyle = FontStyles.Bold;
-        SetRect(name.rectTransform, new Vector2(0.5f, 0.82f), new Vector2(250f, 38f), Vector2.zero);
-
-        TMP_Text stats = CreateText(panel, "Stats", "", 18, TextAnchor.MiddleCenter, Color.white);
-        SetRect(stats.rectTransform, new Vector2(0.5f, 0.42f), new Vector2(255f, 58f), Vector2.zero);
-        if (isPlayer)
-        {
-            playerStatsText = stats;
-        }
-        else
-        {
-            cpuStatsText = stats;
-        }
-
-        RectTransform healthBar = CreatePanel(panel, "Health Bar", new Color(0.08f, 0.08f, 0.10f, 0.95f));
-        SetRect(healthBar, new Vector2(0.5f, 0.66f), new Vector2(245f, 18f), Vector2.zero);
-        Image fill = CreateImage(healthBar, "Fill", null, accent);
-        RectTransform fillRect = fill.rectTransform;
-        fillRect.anchorMin = Vector2.zero;
-        fillRect.anchorMax = Vector2.one;
-        fillRect.offsetMin = new Vector2(3f, 3f);
-        fillRect.offsetMax = new Vector2(-3f, -3f);
-        fill.type = Image.Type.Simple;
-        if (isPlayer)
-        {
-            playerHealthFill = fill;
-        }
-        else
-        {
-            cpuHealthFill = fill;
-        }
-
-        List<TMP_Text> queueTexts = isPlayer ? playerPendingTexts : cpuPendingTexts;
-        for (int i = 0; i < OrbNames.Length; i++)
-        {
-            float x = 0.12f + i * 0.19f;
-            TMP_Text queue = CreateText(panel, OrbNames[i] + " Queue", "0", 16, TextAnchor.MiddleCenter, OrbColors[i]);
-            queue.fontStyle = FontStyles.Bold;
-            SetRect(queue.rectTransform, new Vector2(x, 0.12f), new Vector2(52f, 42f), Vector2.zero);
-            queueTexts.Add(queue);
-        }
-
-        GameObject characterSlot = new GameObject(
-            isPlayer ? "CharacterSlot_Player" : "CharacterSlot_Enemy",
-            typeof(RectTransform));
-        characterSlot.transform.SetParent(mappedPanel, false);
-        characterSlot.transform.localPosition = new Vector3(0f, 1.55f, -0.02f);
-    }
-
     private void FillInitialBoard()
     {
-        for (int row = 0; row < boardRows; row++)
+        for (int row = 0; row < Rows; row++)
         {
-            for (int column = 0; column < boardColumns; column++)
+            for (int column = 0; column < Columns; column++)
             {
                 OrbType type;
                 do
@@ -446,13 +206,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private OrbView CreateOrb(int row, int column, OrbType type)
     {
-        GameObject orbObject = new GameObject(
-            $"Orb {row},{column}",
-            typeof(RectTransform),
-            typeof(CanvasRenderer),
-            typeof(Image),
-            typeof(Button));
-        orbObject.transform.SetParent(boardRoot, false);
+        RectTransform rect = battleBoard.SpawnCell();
+        GameObject orbObject = rect.gameObject;
+        orbObject.name = $"Orb {row},{column}";
 
         Image image = orbObject.GetComponent<Image>();
         image.sprite = circleSprite;
@@ -460,17 +216,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         image.preserveAspect = true;
 
         Button button = orbObject.GetComponent<Button>();
-        button.transition = Selectable.Transition.ColorTint;
-        ColorBlock colors = button.colors;
-        colors.highlightedColor = Color.white;
-        colors.pressedColor = new Color(0.75f, 0.75f, 0.75f);
-        colors.selectedColor = Color.white;
-        button.colors = colors;
 
         OrbView orb = new OrbView
         {
             Type = type,
-            Rect = orbObject.GetComponent<RectTransform>(),
+            Rect = rect,
             Image = image,
             Button = button,
             Row = row,
@@ -478,7 +228,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         };
         button.onClick.AddListener(() => OnOrbPointerClicked(orb));
 
-        EventTrigger trigger = orbObject.AddComponent<EventTrigger>();
+        EventTrigger trigger = orbObject.GetComponent<EventTrigger>();
+        if (trigger == null)
+        {
+            trigger = orbObject.AddComponent<EventTrigger>();
+        }
         EventTrigger.Entry enter = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
         enter.callback.AddListener(_ => OnOrbPointerEntered(orb));
         trigger.triggers.Add(enter);
@@ -515,7 +269,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         if (!inputReady)
         {
-            messageText.text = "Press ENTER or GAMEPAD SOUTH to enable controls";
+            hud.SetMessage("Press ENTER or GAMEPAD SOUTH to enable controls");
             return;
         }
         MoveFocusTo(orb.Row, orb.Column);
@@ -534,7 +288,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             selectedOrb = orb;
             RefreshSelectionFrames();
-            messageText.text = "Selected - move to an adjacent orb and press Action";
+            hud.SetMessage("Selected - move to an adjacent orb and press Action");
             return;
         }
 
@@ -542,7 +296,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             selectedOrb = null;
             RefreshSelectionFrames();
-            messageText.text = "";
+            hud.SetMessage("");
             return;
         }
 
@@ -550,14 +304,14 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             OrbView first = selectedOrb;
             selectedOrb = null;
-            focusFrame.gameObject.SetActive(false);
+            battleBoard.HideSelection();
             StartCoroutine(TrySwap(first, orb, true));
         }
         else
         {
             selectedOrb = orb;
             RefreshSelectionFrames();
-            messageText.text = "Selection moved - choose an adjacent orb";
+            hud.SetMessage("Selection moved - choose an adjacent orb");
         }
     }
 
@@ -566,16 +320,14 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         inputReady = false;
         boardBusy = false;
         timeRemaining = TurnDuration;
-        turnText.text = "READY?";
-        turnText.color = new Color(1f, 0.88f, 0.35f);
-        timerText.text = "10";
-        timerText.color = Color.white;
-        messageText.text = playerVsPlayer
+        hud.SetTurn("READY?", new Color(1f, 0.88f, 0.35f));
+        hud.SetTimer("10", Color.white, false);
+        hud.SetMessage(playerVsPlayer
             ? "PRESS P1 ENTER / P2 0 / GAMEPAD A"
-            : "PRESS ENTER / GAMEPAD A";
-        hookText.text = playerVsPlayer
+            : "PRESS ENTER / GAMEPAD A");
+        hud.SetHook(playerVsPlayer
             ? "P1: WASD + ENTER    P2: 1 2 3 5 + 0"
-            : "ENABLE CONTROLS TO BEGIN";
+            : "ENABLE CONTROLS TO BEGIN");
         MoveFocusTo(0, 0);
         UpdateHud();
     }
@@ -589,8 +341,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             {
                 nextNavigationTime = Time.unscaledTime + 0.16f;
                 MoveFocusTo(
-                    Mathf.Clamp(cursorRow - direction.y, 0, boardRows - 1),
-                    Mathf.Clamp(cursorColumn + direction.x, 0, boardColumns - 1));
+                    Mathf.Clamp(cursorRow - direction.y, 0, Rows - 1),
+                    Mathf.Clamp(cursorColumn + direction.x, 0, Columns - 1));
             }
         }
 
@@ -602,7 +354,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             selectedOrb = null;
             RefreshSelectionFrames();
-            messageText.text = "Selection cancelled";
+            hud.SetMessage("Selection cancelled");
         }
     }
 
@@ -620,66 +372,20 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                        (!inputReady || IsHumanTurn);
         if (!canShow)
         {
-            focusFrame.gameObject.SetActive(false);
+            battleBoard.HideSelection();
             return;
         }
 
-        ShowFrameAt(focusFrame, cursorRow, cursorColumn);
-        SetSelectionFrameColor(
-            focusFrame,
-            selectedOrb != null ? new Color(1f, 0.82f, 0.18f) : Color.white);
+        Color color = selectedOrb != null ? new Color(1f, 0.82f, 0.18f) : Color.white;
+        battleBoard.ShowSelectionAt(ComputeCellPosition(cursorRow, cursorColumn), color);
     }
 
-    private static void SetSelectionFrameColor(RectTransform frame, Color color)
+    private static Vector2 ComputeCellPosition(int row, int column)
     {
-        Image[] corners = frame.GetComponentsInChildren<Image>(true);
-        foreach (Image corner in corners)
-        {
-            corner.color = color;
-        }
-    }
-
-    private void ShowFrameAt(RectTransform frame, int row, int column)
-    {
-        float step = orbCellSize + orbCellGap;
-        frame.anchoredPosition = new Vector2(
-            (column - (boardColumns - 1) * 0.5f) * step,
-            ((boardRows - 1) * 0.5f - row) * step);
-        frame.gameObject.SetActive(true);
-    }
-
-    private RectTransform CreateSelectionFrame(Transform parent, string name, Color color)
-    {
-        GameObject frameObject = new GameObject(name, typeof(RectTransform));
-        frameObject.transform.SetParent(parent, false);
-        RectTransform frame = frameObject.GetComponent<RectTransform>();
-        float frameSize = orbCellSize + 10f;
-        SetRect(frame, new Vector2(0.5f, 0.5f), new Vector2(frameSize, frameSize), Vector2.zero);
-
-        Vector2[] anchors =
-        {
-            new Vector2(0f, 1f),
-            new Vector2(1f, 1f),
-            new Vector2(0f, 0f),
-            new Vector2(1f, 0f)
-        };
-        float cornerSize = Mathf.Clamp(orbCellSize * 0.33f, 16f, 24f);
-        for (int i = 0; i < 4; i++)
-        {
-            Sprite sprite = selectionSprites != null && selectionSprites.Length > i
-                ? selectionSprites[i]
-                : null;
-            Image corner = CreateImage(frame, $"Corner {i}", sprite, color);
-            corner.preserveAspect = true;
-            corner.raycastTarget = false;
-            RectTransform rect = corner.rectTransform;
-            rect.anchorMin = anchors[i];
-            rect.anchorMax = anchors[i];
-            rect.pivot = anchors[i];
-            rect.sizeDelta = new Vector2(cornerSize, cornerSize);
-            rect.anchoredPosition = Vector2.zero;
-        }
-        return frame;
+        float step = CellSize + CellGap;
+        return new Vector2(
+            (column - (Columns - 1) * 0.5f) * step,
+            ((Rows - 1) * 0.5f - row) * step);
     }
 
     private static bool AnyStartPressed()
@@ -809,7 +515,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             yield return AnimateInvalidSwap(first, second);
             if (showInvalidMessage)
             {
-                messageText.text = "No match - choose another move";
+                hud.SetMessage("No match - choose another move");
             }
             boardBusy = false;
             RefreshSelectionFrames();
@@ -829,7 +535,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             matches = FindMatches();
         }
 
-        messageText.text = combo > 1 ? $"CHAIN x{combo}!" : "MATCH!";
+        hud.SetMessage(combo > 1 ? $"CHAIN x{combo}!" : "MATCH!");
         boardBusy = false;
         RefreshSelectionFrames();
     }
@@ -873,12 +579,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         HashSet<OrbView> found = new HashSet<OrbView>();
 
-        for (int row = 0; row < boardRows; row++)
+        for (int row = 0; row < Rows; row++)
         {
             int runStart = 0;
-            for (int column = 1; column <= boardColumns; column++)
+            for (int column = 1; column <= Columns; column++)
             {
-                if (column < boardColumns && board[row, column].Type == board[row, runStart].Type)
+                if (column < Columns && board[row, column].Type == board[row, runStart].Type)
                 {
                     continue;
                 }
@@ -894,12 +600,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             }
         }
 
-        for (int column = 0; column < boardColumns; column++)
+        for (int column = 0; column < Columns; column++)
         {
             int runStart = 0;
-            for (int row = 1; row <= boardRows; row++)
+            for (int row = 1; row <= Rows; row++)
             {
-                if (row < boardRows && board[row, column].Type == board[runStart, column].Type)
+                if (row < Rows && board[row, column].Type == board[runStart, column].Type)
                 {
                     continue;
                 }
@@ -949,10 +655,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void CollapseBoard()
     {
-        for (int column = 0; column < boardColumns; column++)
+        for (int column = 0; column < Columns; column++)
         {
             List<OrbType> survivors = new List<OrbType>();
-            for (int row = boardRows - 1; row >= 0; row--)
+            for (int row = Rows - 1; row >= 0; row--)
             {
                 if (board[row, column].Rect.localScale.x > 0.5f)
                 {
@@ -961,7 +667,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             }
 
             int survivorIndex = 0;
-            for (int row = boardRows - 1; row >= 0; row--)
+            for (int row = Rows - 1; row >= 0; row--)
             {
                 if (survivorIndex < survivors.Count)
                 {
@@ -979,9 +685,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void RefillBoard()
     {
-        for (int row = 0; row < boardRows; row++)
+        for (int row = 0; row < Rows; row++)
         {
-            for (int column = 0; column < boardColumns; column++)
+            for (int column = 0; column < Columns; column++)
             {
                 OrbView orb = board[row, column];
                 if (orb.Rect.localScale.x > 0.5f)
@@ -1005,8 +711,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         Fighter acting = playerTurn ? player : cpu;
         Fighter target = playerTurn ? cpu : player;
-        messageText.text = "DESTINY DECIDED!";
-        hookText.text = "RESOLVING THE QUEUE...";
+        hud.SetMessage("DESTINY DECIDED!");
+        hud.SetHook("RESOLVING THE QUEUE...");
         yield return new WaitForSeconds(0.45f);
 
         int attack = acting.Pending[(int)OrbType.Red] * 4;
@@ -1043,11 +749,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         Array.Clear(acting.Pending, 0, acting.Pending.Length);
         UpdateHud();
 
-        messageText.text = BuildResolutionMessage(acting, damage, blocked, heal, shieldGain, manaGain, specialBursts);
+        hud.SetMessage(BuildResolutionMessage(acting, damage, blocked, heal, shieldGain, manaGain, specialBursts));
         if (damage > 0)
         {
-            Transform hitPanel = target == player ? elementMap.panelPlayer : elementMap.panelEnemy;
-            yield return FlashDamage(hitPanel);
+            UIFighterPanel hitPanel = target == player ? playerPanel : enemyPanel;
+            yield return hitPanel.Flash(new Color(1f, 0.14f, 0.12f));
         }
         yield return new WaitForSeconds(1f);
 
@@ -1059,25 +765,6 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         boardBusy = false;
         BeginTurn(!playerTurn);
-    }
-
-    private static IEnumerator FlashDamage(Transform targetPanel)
-    {
-        SpriteRenderer renderer = targetPanel != null ? targetPanel.GetComponent<SpriteRenderer>() : null;
-        if (renderer == null)
-        {
-            yield break;
-        }
-
-        Color original = renderer.color;
-        for (int i = 0; i < 4; i++)
-        {
-            renderer.color = i % 2 == 0
-                ? new Color(1f, 0.14f, 0.12f, original.a)
-                : original;
-            yield return new WaitForSeconds(0.07f);
-        }
-        renderer.color = original;
     }
 
     private string BuildResolutionMessage(
@@ -1118,22 +805,25 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
         else
         {
-            focusFrame.gameObject.SetActive(false);
+            battleBoard.HideSelection();
         }
-        turnText.text = isPlayer
-            ? (playerVsPlayer ? "PLAYER 1 TURN" : "PLAYER TURN")
-            : (playerVsPlayer ? "PLAYER 2 TURN" : "CPU TURN");
-        turnText.color = isPlayer
-            ? new Color(0.22f, 0.72f, 1f)
-            : new Color(1f, 0.27f, 0.30f);
-        messageText.text = isPlayer
-            ? "Player 1: build your queue before time runs out."
-            : playerVsPlayer
-                ? "Player 2: build your queue before time runs out."
-                : "CPU is planning...";
-        hookText.text = isPlayer
-            ? "RACE AGAINST TIME. MATCH WISELY. SURVIVE THE COUNTDOWN."
-            : "EVERY 10 SECONDS, DESTINY IS DECIDED.";
+        hud.SetTurn(
+            isPlayer
+                ? (playerVsPlayer ? "PLAYER 1 TURN" : "PLAYER TURN")
+                : (playerVsPlayer ? "PLAYER 2 TURN" : "CPU TURN"),
+            isPlayer
+                ? new Color(0.22f, 0.72f, 1f)
+                : new Color(1f, 0.27f, 0.30f));
+        hud.SetMessage(
+            isPlayer
+                ? "Player 1: build your queue before time runs out."
+                : playerVsPlayer
+                    ? "Player 2: build your queue before time runs out."
+                    : "CPU is planning...");
+        hud.SetHook(
+            isPlayer
+                ? "RACE AGAINST TIME. MATCH WISELY. SURVIVE THE COUNTDOWN."
+                : "EVERY 10 SECONDS, DESTINY IS DECIDED.");
         UpdateTimer();
         UpdateHud();
     }
@@ -1144,19 +834,21 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         boardBusy = true;
         RefreshSelectionFrames();
         bool playerOneWon = winner == player;
-        turnText.text = playerVsPlayer
-            ? (playerOneWon ? "PLAYER 1 WINS" : "PLAYER 2 WINS")
-            : (playerOneWon ? "VICTORY" : "DEFEAT");
-        turnText.color = playerOneWon
-            ? new Color(0.22f, 0.72f, 1f)
-            : new Color(1f, 0.27f, 0.30f);
-        timerText.text = "0";
-        messageText.text = playerVsPlayer
-            ? $"{winner.Name} decided destiny."
-            : playerOneWon
-                ? "Destiny favors you."
-                : "The CPU decided your fate.";
-        hookText.text = "Press R / GAMEPAD NORTH to restart";
+        hud.SetTurn(
+            playerVsPlayer
+                ? (playerOneWon ? "PLAYER 1 WINS" : "PLAYER 2 WINS")
+                : (playerOneWon ? "VICTORY" : "DEFEAT"),
+            playerOneWon
+                ? new Color(0.22f, 0.72f, 1f)
+                : new Color(1f, 0.27f, 0.30f));
+        hud.SetTimer("0", Color.white, false);
+        hud.SetMessage(
+            playerVsPlayer
+                ? $"{winner.Name} decided destiny."
+                : playerOneWon
+                    ? "Destiny favors you."
+                    : "The CPU decided your fate.");
+        hud.SetHook("Press R / GAMEPAD NORTH to restart");
         StartCoroutine(RestartListener());
     }
 
@@ -1192,15 +884,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         int bestScore = int.MinValue;
         List<BoardMove> bestMoves = new List<BoardMove>();
 
-        for (int row = 0; row < boardRows; row++)
+        for (int row = 0; row < Rows; row++)
         {
-            for (int column = 0; column < boardColumns; column++)
+            for (int column = 0; column < Columns; column++)
             {
-                if (column + 1 < boardColumns)
+                if (column + 1 < Columns)
                 {
                     ScoreCpuMove(row, column, row, column + 1, ref bestScore, bestMoves);
                 }
-                if (row + 1 < boardRows)
+                if (row + 1 < Rows)
                 {
                     ScoreCpuMove(row, column, row + 1, column, ref bestScore, bestMoves);
                 }
@@ -1260,56 +952,40 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void ShuffleBoard()
     {
-        for (int row = 0; row < boardRows; row++)
+        for (int row = 0; row < Rows; row++)
         {
-            for (int column = 0; column < boardColumns; column++)
+            for (int column = 0; column < Columns; column++)
             {
                 board[row, column].Type = (OrbType)UnityEngine.Random.Range(0, OrbColors.Length);
                 board[row, column].Rect.localScale = Vector3.one;
                 RefreshOrb(board[row, column]);
             }
         }
-        messageText.text = "No moves - board reshuffled!";
+        hud.SetMessage("No moves - board reshuffled!");
     }
 
     private void UpdateTimer()
     {
         float shownTime = Mathf.Max(0f, timeRemaining);
-        timerText.text = shownTime > 3f ? shownTime.ToString("0.0") : Mathf.CeilToInt(shownTime).ToString();
-        timerText.color = shownTime <= 3f
+        string text = shownTime > 3f ? shownTime.ToString("0.0") : Mathf.CeilToInt(shownTime).ToString();
+        Color color = shownTime <= 3f
             ? OrbColors[(int)OrbType.Red]
             : new Color(1f, 0.94f, 0.72f);
-        timerText.transform.localScale = shownTime <= 3f
-            ? Vector3.one * (1f + Mathf.PingPong(Time.time * 3f, 0.12f))
-            : Vector3.one;
+        hud.SetTimer(text, color, shownTime <= 3f);
     }
 
     private void UpdateHud()
     {
-        playerStatsText.text = $"HP {player.Health}/100   MP {player.Mana}/30\nSH {player.Shield}   SP {player.Special}/12";
-        cpuStatsText.text = $"HP {cpu.Health}/100   MP {cpu.Mana}/30\nSH {cpu.Shield}   SP {cpu.Special}/12";
-        SetHealthBar(playerHealthFill, player.Health / 100f);
-        SetHealthBar(cpuHealthFill, cpu.Health / 100f);
+        playerPanel.SetStats($"HP {player.Health}/100   MP {player.Mana}/30\nSH {player.Shield}   SP {player.Special}/12");
+        enemyPanel.SetStats($"HP {cpu.Health}/100   MP {cpu.Mana}/30\nSH {cpu.Shield}   SP {cpu.Special}/12");
+        playerPanel.SetHealth(player.Health / 100f);
+        enemyPanel.SetHealth(cpu.Health / 100f);
 
-        string[] shortNames = { "ATK", "MP", "HP", "SH", "SP" };
-        for (int i = 0; i < OrbNames.Length; i++)
+        for (int i = 0; i < ShortNames.Length; i++)
         {
-            playerPendingTexts[i].text = $"{shortNames[i]}\n{player.Pending[i]}";
-            cpuPendingTexts[i].text = $"{shortNames[i]}\n{cpu.Pending[i]}";
-            playerPendingTexts[i].color = player.Pending[i] > 0 ? OrbColors[i] : Color.white;
-            cpuPendingTexts[i].color = cpu.Pending[i] > 0 ? OrbColors[i] : Color.white;
+            playerPanel.SetPending(i, $"{ShortNames[i]}\n{player.Pending[i]}", player.Pending[i] > 0 ? OrbColors[i] : Color.white);
+            enemyPanel.SetPending(i, $"{ShortNames[i]}\n{cpu.Pending[i]}", cpu.Pending[i] > 0 ? OrbColors[i] : Color.white);
         }
-    }
-
-    private static void SetHealthBar(Image fill, float normalizedHealth)
-    {
-        normalizedHealth = Mathf.Clamp01(normalizedHealth);
-        RectTransform rect = fill.rectTransform;
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = new Vector2(Mathf.Max(0.03f, normalizedHealth), 1f);
-        rect.offsetMin = new Vector2(3f, 3f);
-        rect.offsetMax = new Vector2(-3f, -3f);
-        fill.enabled = normalizedHealth > 0f;
     }
 
     private bool WouldCreateStartingMatch(int row, int column, OrbType type)
@@ -1342,89 +1018,5 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         orb.Image.color = OrbColors[(int)orb.Type];
         orb.Rect.localScale = Vector3.one;
-    }
-
-    private static void SetSelected(OrbView orb, bool selected)
-    {
-        orb.Rect.localScale = selected ? Vector3.one * 1.12f : Vector3.one;
-        orb.Image.color = selected ? Color.Lerp(OrbColors[(int)orb.Type], Color.white, 0.35f) : OrbColors[(int)orb.Type];
-    }
-
-    private static RectTransform CreatePanel(Transform parent, string name, Color color)
-    {
-        GameObject panelObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        panelObject.transform.SetParent(parent, false);
-        panelObject.GetComponent<Image>().color = color;
-        return panelObject.GetComponent<RectTransform>();
-    }
-
-    private static Image CreateImage(Transform parent, string name, Sprite sprite, Color color)
-    {
-        GameObject imageObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        imageObject.transform.SetParent(parent, false);
-        Image image = imageObject.GetComponent<Image>();
-        image.sprite = sprite;
-        image.color = color;
-        return image;
-    }
-
-    private static TextMeshProUGUI CreateText(
-        Transform parent,
-        string name,
-        string content,
-        int fontSize,
-        TextAnchor alignment,
-        Color color)
-    {
-        GameObject textObject = new GameObject(
-            name,
-            typeof(RectTransform),
-            typeof(CanvasRenderer),
-            typeof(TextMeshProUGUI));
-        textObject.transform.SetParent(parent, false);
-        TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
-        text.font = GameFontController.Font;
-        text.text = content;
-        text.fontSize = fontSize;
-        text.alignment = ConvertAlignment(alignment);
-        text.color = color;
-        text.textWrappingMode = TextWrappingModes.Normal;
-        text.overflowMode = TextOverflowModes.Overflow;
-        text.outlineColor = new Color32(0, 0, 0, 210);
-        text.outlineWidth = 0.12f;
-        return text;
-    }
-
-    private static TextAlignmentOptions ConvertAlignment(TextAnchor alignment)
-    {
-        switch (alignment)
-        {
-            case TextAnchor.UpperLeft: return TextAlignmentOptions.TopLeft;
-            case TextAnchor.UpperCenter: return TextAlignmentOptions.Top;
-            case TextAnchor.UpperRight: return TextAlignmentOptions.TopRight;
-            case TextAnchor.MiddleLeft: return TextAlignmentOptions.Left;
-            case TextAnchor.MiddleRight: return TextAlignmentOptions.Right;
-            case TextAnchor.LowerLeft: return TextAlignmentOptions.BottomLeft;
-            case TextAnchor.LowerCenter: return TextAlignmentOptions.Bottom;
-            case TextAnchor.LowerRight: return TextAlignmentOptions.BottomRight;
-            default: return TextAlignmentOptions.Center;
-        }
-    }
-
-    private static void SetRect(RectTransform rect, Vector2 anchor, Vector2 size, Vector2 position)
-    {
-        rect.anchorMin = anchor;
-        rect.anchorMax = anchor;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = size;
-        rect.anchoredPosition = position;
-    }
-
-    private static void Stretch(RectTransform rect)
-    {
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
     }
 }
