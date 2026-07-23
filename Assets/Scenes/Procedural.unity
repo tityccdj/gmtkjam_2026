@@ -2331,6 +2331,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 203c6676278364e89b814d72f203ca9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UIBattleBoard
+  boardShell: {fileID: 888407248}
   boardRoot: {fileID: 1295776029}
   orbCellPrefab: {fileID: 1246504314136488924, guid: 0cb041cbdd4e041bc902c333e368c871, type: 3}
   selectionFrame: {fileID: 1241402088}
@@ -2339,6 +2340,8 @@ MonoBehaviour:
   - {fileID: 1118265896}
   - {fileID: 1146618689}
   - {fileID: 399395911}
+  maxBoardPixelSize: 482
+  cellGap: 5
 --- !u!114 &888407250
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5326,6 +5329,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ProceduralMatchFighter
   playerVsPlayer: 0
+  levelConfig: {fileID: 11400000, guid: 6448dc3c688e04d0daf8fd668cac3822, type: 2}
   hud: {fileID: 943200722}
   battleBoard: {fileID: 888407249}
   playerPanel: {fileID: 495929141}

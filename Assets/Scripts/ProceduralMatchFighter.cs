@@ -29,7 +29,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private sealed class Fighter
     {
         public string Name;
-        public int Health = 100;
+        public int Health;
         public int Mana;
         public int Shield;
         public int Special;
@@ -70,12 +70,6 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         public static BoardMove Invalid => new BoardMove(-1, -1, -1, -1);
     }
 
-    private const int Rows = 6;
-    private const int Columns = 6;
-    private const float TurnDuration = 10f;
-    private const float CellSize = 72f;
-    private const float CellGap = 5f;
-
     private static readonly Color[] OrbColors =
     {
         new Color(1f, 0.22f, 0.25f),
@@ -87,12 +81,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private static readonly string[] ShortNames = { "ATK", "MP", "HP", "SH", "SP" };
 
-    private readonly OrbView[,] board = new OrbView[Rows, Columns];
+    private OrbView[,] board;
     private readonly Fighter player = new Fighter("PLAYER");
     private readonly Fighter cpu = new Fighter("CPU");
 
     [Header("Game Mode")]
     [SerializeField] private bool playerVsPlayer = false;
+
+    [Header("Level")]
+    [SerializeField] private LevelConfig levelConfig;
 
     [Header("UI")]
     [SerializeField] private UIBattleHud hud;
@@ -100,6 +97,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [SerializeField] private UIFighterPanel playerPanel;
     [SerializeField] private UIFighterPanel enemyPanel;
 
+    private int rows;
+    private int columns;
+    private float turnDuration;
     private Sprite circleSprite;
     private OrbView selectedOrb;
     private OrbView mouseHoverOrb;
@@ -107,7 +107,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private bool playerTurn = true;
     private bool boardBusy;
     private bool battleEnded;
-    private float timeRemaining = TurnDuration;
+    private float timeRemaining;
     private float cpuMoveTimer;
     private float nextNavigationTime;
     private int cursorRow;
@@ -118,6 +118,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void Awake()
     {
+        rows = Mathf.Max(3, levelConfig.rows);
+        columns = Mathf.Max(3, levelConfig.columns);
+        turnDuration = levelConfig.turnDuration;
+        timeRemaining = turnDuration;
+        board = new OrbView[rows, columns];
+
+        player.Health = levelConfig.healthCap;
+        cpu.Health = levelConfig.healthCap;
+        cpu.Name = levelConfig.enemyName;
         if (playerVsPlayer)
         {
             player.Name = "PLAYER 1";
@@ -130,6 +139,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             circleSprite = sprites[0];
         }
 
+        battleBoard.ConfigureGrid(rows, columns);
         FillInitialBoard();
         PrepareForInput();
     }
@@ -168,7 +178,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             cpuMoveTimer -= Time.deltaTime;
             if (cpuMoveTimer <= 0f)
             {
-                cpuMoveTimer = 1.15f;
+                cpuMoveTimer = levelConfig.cpuThinkInterval;
                 BoardMove move = FindBestCpuMove();
                 if (move.IsValid)
                 {
@@ -188,9 +198,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void FillInitialBoard()
     {
-        for (int row = 0; row < Rows; row++)
+        for (int row = 0; row < rows; row++)
         {
-            for (int column = 0; column < Columns; column++)
+            for (int column = 0; column < columns; column++)
             {
                 OrbType type;
                 do
@@ -319,7 +329,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         inputReady = false;
         boardBusy = false;
-        timeRemaining = TurnDuration;
+        timeRemaining = turnDuration;
         hud.SetTurn("READY?", new Color(1f, 0.88f, 0.35f));
         hud.SetTimer("10", Color.white, false);
         hud.SetMessage(playerVsPlayer
@@ -341,8 +351,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             {
                 nextNavigationTime = Time.unscaledTime + 0.16f;
                 MoveFocusTo(
-                    Mathf.Clamp(cursorRow - direction.y, 0, Rows - 1),
-                    Mathf.Clamp(cursorColumn + direction.x, 0, Columns - 1));
+                    Mathf.Clamp(cursorRow - direction.y, 0, rows - 1),
+                    Mathf.Clamp(cursorColumn + direction.x, 0, columns - 1));
             }
         }
 
@@ -380,12 +390,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         battleBoard.ShowSelectionAt(ComputeCellPosition(cursorRow, cursorColumn), color);
     }
 
-    private static Vector2 ComputeCellPosition(int row, int column)
+    private Vector2 ComputeCellPosition(int row, int column)
     {
-        float step = CellSize + CellGap;
+        float step = battleBoard.CellStep;
         return new Vector2(
-            (column - (Columns - 1) * 0.5f) * step,
-            ((Rows - 1) * 0.5f - row) * step);
+            (column - (columns - 1) * 0.5f) * step,
+            ((rows - 1) * 0.5f - row) * step);
     }
 
     private static bool AnyStartPressed()
@@ -579,12 +589,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         HashSet<OrbView> found = new HashSet<OrbView>();
 
-        for (int row = 0; row < Rows; row++)
+        for (int row = 0; row < rows; row++)
         {
             int runStart = 0;
-            for (int column = 1; column <= Columns; column++)
+            for (int column = 1; column <= columns; column++)
             {
-                if (column < Columns && board[row, column].Type == board[row, runStart].Type)
+                if (column < columns && board[row, column].Type == board[row, runStart].Type)
                 {
                     continue;
                 }
@@ -600,12 +610,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             }
         }
 
-        for (int column = 0; column < Columns; column++)
+        for (int column = 0; column < columns; column++)
         {
             int runStart = 0;
-            for (int row = 1; row <= Rows; row++)
+            for (int row = 1; row <= rows; row++)
             {
-                if (row < Rows && board[row, column].Type == board[runStart, column].Type)
+                if (row < rows && board[row, column].Type == board[runStart, column].Type)
                 {
                     continue;
                 }
@@ -655,10 +665,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void CollapseBoard()
     {
-        for (int column = 0; column < Columns; column++)
+        for (int column = 0; column < columns; column++)
         {
             List<OrbType> survivors = new List<OrbType>();
-            for (int row = Rows - 1; row >= 0; row--)
+            for (int row = rows - 1; row >= 0; row--)
             {
                 if (board[row, column].Rect.localScale.x > 0.5f)
                 {
@@ -667,7 +677,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             }
 
             int survivorIndex = 0;
-            for (int row = Rows - 1; row >= 0; row--)
+            for (int row = rows - 1; row >= 0; row--)
             {
                 if (survivorIndex < survivors.Count)
                 {
@@ -685,9 +695,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void RefillBoard()
     {
-        for (int row = 0; row < Rows; row++)
+        for (int row = 0; row < rows; row++)
         {
-            for (int column = 0; column < Columns; column++)
+            for (int column = 0; column < columns; column++)
             {
                 OrbView orb = board[row, column];
                 if (orb.Rect.localScale.x > 0.5f)
@@ -715,32 +725,32 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         hud.SetHook("RESOLVING THE QUEUE...");
         yield return new WaitForSeconds(0.45f);
 
-        int attack = acting.Pending[(int)OrbType.Red] * 4;
-        int manaGain = acting.Pending[(int)OrbType.Blue] * 2;
-        int heal = acting.Pending[(int)OrbType.Green] * 2;
-        int shieldGain = acting.Pending[(int)OrbType.Yellow];
-        int specialGain = acting.Pending[(int)OrbType.Purple];
+        int attack = acting.Pending[(int)OrbType.Red] * levelConfig.attackPerOrb;
+        int manaGain = acting.Pending[(int)OrbType.Blue] * levelConfig.manaPerOrb;
+        int heal = acting.Pending[(int)OrbType.Green] * levelConfig.healPerOrb;
+        int shieldGain = acting.Pending[(int)OrbType.Yellow] * levelConfig.shieldPerOrb;
+        int specialGain = acting.Pending[(int)OrbType.Purple] * levelConfig.specialPerOrb;
 
-        acting.Mana = Mathf.Min(100, acting.Mana + manaGain);
-        acting.Health = Mathf.Min(100, acting.Health + heal);
-        acting.Shield = Mathf.Min(30, acting.Shield + shieldGain);
+        acting.Mana = Mathf.Min(levelConfig.manaCap, acting.Mana + manaGain);
+        acting.Health = Mathf.Min(levelConfig.healthCap, acting.Health + heal);
+        acting.Shield = Mathf.Min(levelConfig.shieldCap, acting.Shield + shieldGain);
         acting.Special += specialGain;
 
-        int specialBursts = acting.Special / 12;
+        int specialBursts = acting.Special / levelConfig.specialBurstThreshold;
         if (specialBursts > 0)
         {
-            attack += specialBursts * 18;
-            acting.Special %= 12;
+            attack += specialBursts * levelConfig.specialBurstAttackBonus;
+            acting.Special %= levelConfig.specialBurstThreshold;
         }
 
-        int manaBursts = acting.Mana / 30;
+        int manaBursts = acting.Mana / levelConfig.manaBurstThreshold;
         if (manaBursts > 0)
         {
-            attack += manaBursts * 8;
-            acting.Mana %= 30;
+            attack += manaBursts * levelConfig.manaBurstAttackBonus;
+            acting.Mana %= levelConfig.manaBurstThreshold;
         }
 
-        int maxBlockedThisHit = Mathf.FloorToInt(attack * 0.7f);
+        int maxBlockedThisHit = Mathf.FloorToInt(attack * levelConfig.shieldBlockRatio);
         int blocked = Mathf.Min(target.Shield, maxBlockedThisHit);
         target.Shield -= blocked;
         int damage = attack - blocked;
@@ -788,8 +798,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private void BeginTurn(bool isPlayer)
     {
         playerTurn = isPlayer;
-        timeRemaining = TurnDuration;
-        cpuMoveTimer = 0.7f;
+        timeRemaining = turnDuration;
+        cpuMoveTimer = levelConfig.cpuInitialThinkDelay;
         combo = 0;
         selectedOrb = null;
         if (IsHumanTurn)
@@ -884,15 +894,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         int bestScore = int.MinValue;
         List<BoardMove> bestMoves = new List<BoardMove>();
 
-        for (int row = 0; row < Rows; row++)
+        for (int row = 0; row < rows; row++)
         {
-            for (int column = 0; column < Columns; column++)
+            for (int column = 0; column < columns; column++)
             {
-                if (column + 1 < Columns)
+                if (column + 1 < columns)
                 {
                     ScoreCpuMove(row, column, row, column + 1, ref bestScore, bestMoves);
                 }
-                if (row + 1 < Rows)
+                if (row + 1 < rows)
                 {
                     ScoreCpuMove(row, column, row + 1, column, ref bestScore, bestMoves);
                 }
@@ -923,12 +933,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         int score = 0;
         foreach (OrbView orb in matches)
         {
-            int weight = 1;
-            if (orb.Type == OrbType.Red) weight = 5;
-            if (orb.Type == OrbType.Green && cpu.Health < 50) weight = 6;
-            if (orb.Type == OrbType.Yellow && cpu.Shield < 15) weight = 4;
-            if (orb.Type == OrbType.Purple) weight = 3;
-            score += weight;
+            score += WeightForOrb(orb.Type);
         }
         SwapTypes(first, second);
 
@@ -950,11 +955,34 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
     }
 
+    private int WeightForOrb(OrbType type)
+    {
+        switch (type)
+        {
+            case OrbType.Red:
+                return levelConfig.redWeight;
+            case OrbType.Blue:
+                return levelConfig.blueWeight;
+            case OrbType.Green:
+                return cpu.Health < levelConfig.lowHealthThreshold
+                    ? levelConfig.lowHealthGreenWeight
+                    : levelConfig.greenWeight;
+            case OrbType.Yellow:
+                return cpu.Shield < levelConfig.lowShieldThreshold
+                    ? levelConfig.lowShieldYellowWeight
+                    : levelConfig.yellowWeight;
+            case OrbType.Purple:
+                return levelConfig.purpleWeight;
+            default:
+                return 1;
+        }
+    }
+
     private void ShuffleBoard()
     {
-        for (int row = 0; row < Rows; row++)
+        for (int row = 0; row < rows; row++)
         {
-            for (int column = 0; column < Columns; column++)
+            for (int column = 0; column < columns; column++)
             {
                 board[row, column].Type = (OrbType)UnityEngine.Random.Range(0, OrbColors.Length);
                 board[row, column].Rect.localScale = Vector3.one;
@@ -976,10 +1004,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void UpdateHud()
     {
-        playerPanel.SetStats($"HP {player.Health}/100   MP {player.Mana}/30\nSH {player.Shield}   SP {player.Special}/12");
-        enemyPanel.SetStats($"HP {cpu.Health}/100   MP {cpu.Mana}/30\nSH {cpu.Shield}   SP {cpu.Special}/12");
-        playerPanel.SetHealth(player.Health / 100f);
-        enemyPanel.SetHealth(cpu.Health / 100f);
+        playerPanel.SetStats($"HP {player.Health}/{levelConfig.healthCap}   MP {player.Mana}/{levelConfig.manaBurstThreshold}\nSH {player.Shield}   SP {player.Special}/{levelConfig.specialBurstThreshold}");
+        enemyPanel.SetStats($"HP {cpu.Health}/{levelConfig.healthCap}   MP {cpu.Mana}/{levelConfig.manaBurstThreshold}\nSH {cpu.Shield}   SP {cpu.Special}/{levelConfig.specialBurstThreshold}");
+        playerPanel.SetHealth((float)player.Health / levelConfig.healthCap);
+        enemyPanel.SetHealth((float)cpu.Health / levelConfig.healthCap);
 
         for (int i = 0; i < ShortNames.Length; i++)
         {
