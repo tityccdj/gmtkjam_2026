@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -99,8 +100,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private readonly OrbView[,] board = new OrbView[Rows, Columns];
     private readonly Fighter player = new Fighter("PLAYER");
     private readonly Fighter cpu = new Fighter("CPU");
-    private readonly List<Text> playerPendingTexts = new List<Text>();
-    private readonly List<Text> cpuPendingTexts = new List<Text>();
+    private readonly List<TMP_Text> playerPendingTexts = new List<TMP_Text>();
+    private readonly List<TMP_Text> cpuPendingTexts = new List<TMP_Text>();
 
     [SerializeField] private SceneElementMap elementMap = new SceneElementMap();
 
@@ -110,12 +111,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private RectTransform boardRoot;
     private RectTransform focusFrame;
     private RectTransform lockedFrame;
-    private Text timerText;
-    private Text turnText;
-    private Text messageText;
-    private Text hookText;
-    private Text playerStatsText;
-    private Text cpuStatsText;
+    private TMP_Text timerText;
+    private TMP_Text turnText;
+    private TMP_Text messageText;
+    private TMP_Text hookText;
+    private TMP_Text playerStatsText;
+    private TMP_Text cpuStatsText;
     private Image playerHealthFill;
     private Image cpuHealthFill;
     private OrbView selectedOrb;
@@ -285,7 +286,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             18,
             TextAnchor.MiddleCenter,
             new Color(1f, 0.88f, 0.35f));
-        hookText.fontStyle = FontStyle.Bold;
+        hookText.fontStyle = FontStyles.Bold;
         SetRect(hookText.rectTransform, new Vector2(0.5f, 0.065f), new Vector2(760f, 36f), Vector2.zero);
 
         focusFrame = CreateSelectionFrame(boardShell, "Focus Selection", Color.white);
@@ -297,14 +298,14 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private void CreateHeader(RectTransform root)
     {
         turnText = CreateText(root, "Turn", "PLAYER TURN", 25, TextAnchor.MiddleCenter, Color.white);
-        turnText.fontStyle = FontStyle.Bold;
+        turnText.fontStyle = FontStyles.Bold;
         SetRect(turnText.rectTransform, new Vector2(0.5f, 0.945f), new Vector2(400f, 42f), Vector2.zero);
 
         timerText = CreateText(root, "Countdown", "10.0", 58, TextAnchor.MiddleCenter, Color.white);
-        timerText.fontStyle = FontStyle.Bold;
-        timerText.resizeTextForBestFit = true;
-        timerText.resizeTextMinSize = 30;
-        timerText.resizeTextMaxSize = 58;
+        timerText.fontStyle = FontStyles.Bold;
+        timerText.enableAutoSizing = true;
+        timerText.fontSizeMin = 30;
+        timerText.fontSizeMax = 58;
         SetRect(timerText.rectTransform, new Vector2(0.5f, 0.885f), new Vector2(190f, 78f), Vector2.zero);
     }
 
@@ -349,11 +350,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             0.01f / Mathf.Max(0.001f, Mathf.Abs(scale.y)),
             1f);
 
-        Text name = CreateText(panel, "Name", fighter.Name, 28, TextAnchor.MiddleCenter, accent);
-        name.fontStyle = FontStyle.Bold;
+        TMP_Text name = CreateText(panel, "Name", fighter.Name, 28, TextAnchor.MiddleCenter, accent);
+        name.fontStyle = FontStyles.Bold;
         SetRect(name.rectTransform, new Vector2(0.5f, 0.82f), new Vector2(250f, 38f), Vector2.zero);
 
-        Text stats = CreateText(panel, "Stats", "", 18, TextAnchor.MiddleCenter, Color.white);
+        TMP_Text stats = CreateText(panel, "Stats", "", 18, TextAnchor.MiddleCenter, Color.white);
         SetRect(stats.rectTransform, new Vector2(0.5f, 0.42f), new Vector2(255f, 58f), Vector2.zero);
         if (isPlayer)
         {
@@ -382,12 +383,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             cpuHealthFill = fill;
         }
 
-        List<Text> queueTexts = isPlayer ? playerPendingTexts : cpuPendingTexts;
+        List<TMP_Text> queueTexts = isPlayer ? playerPendingTexts : cpuPendingTexts;
         for (int i = 0; i < OrbNames.Length; i++)
         {
             float x = 0.12f + i * 0.19f;
-            Text queue = CreateText(panel, OrbNames[i] + " Queue", "0", 16, TextAnchor.MiddleCenter, OrbColors[i]);
-            queue.fontStyle = FontStyle.Bold;
+            TMP_Text queue = CreateText(panel, OrbNames[i] + " Queue", "0", 16, TextAnchor.MiddleCenter, OrbColors[i]);
+            queue.fontStyle = FontStyles.Bold;
             SetRect(queue.rectTransform, new Vector2(x, 0.12f), new Vector2(52f, 42f), Vector2.zero);
             queueTexts.Add(queue);
         }
@@ -1228,7 +1229,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         return image;
     }
 
-    private static Text CreateText(
+    private static TextMeshProUGUI CreateText(
         Transform parent,
         string name,
         string content,
@@ -1236,20 +1237,39 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         TextAnchor alignment,
         Color color)
     {
-        GameObject textObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+        GameObject textObject = new GameObject(
+            name,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI));
         textObject.transform.SetParent(parent, false);
-        Text text = textObject.GetComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+        text.font = GameFontController.Font;
         text.text = content;
         text.fontSize = fontSize;
-        text.alignment = alignment;
+        text.alignment = ConvertAlignment(alignment);
         text.color = color;
-        text.horizontalOverflow = HorizontalWrapMode.Wrap;
-        text.verticalOverflow = VerticalWrapMode.Overflow;
-        Outline outline = textObject.AddComponent<Outline>();
-        outline.effectColor = new Color(0f, 0f, 0f, 0.78f);
-        outline.effectDistance = new Vector2(1.2f, -1.2f);
+        text.textWrappingMode = TextWrappingModes.Normal;
+        text.overflowMode = TextOverflowModes.Overflow;
+        text.outlineColor = new Color32(0, 0, 0, 210);
+        text.outlineWidth = 0.12f;
         return text;
+    }
+
+    private static TextAlignmentOptions ConvertAlignment(TextAnchor alignment)
+    {
+        switch (alignment)
+        {
+            case TextAnchor.UpperLeft: return TextAlignmentOptions.TopLeft;
+            case TextAnchor.UpperCenter: return TextAlignmentOptions.Top;
+            case TextAnchor.UpperRight: return TextAlignmentOptions.TopRight;
+            case TextAnchor.MiddleLeft: return TextAlignmentOptions.Left;
+            case TextAnchor.MiddleRight: return TextAlignmentOptions.Right;
+            case TextAnchor.LowerLeft: return TextAlignmentOptions.BottomLeft;
+            case TextAnchor.LowerCenter: return TextAlignmentOptions.Bottom;
+            case TextAnchor.LowerRight: return TextAlignmentOptions.BottomRight;
+            default: return TextAlignmentOptions.Center;
+        }
     }
 
     private static void SetRect(RectTransform rect, Vector2 anchor, Vector2 size, Vector2 position)
