@@ -48,12 +48,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AudioManager
   musicSource: {fileID: 3522928999020569160}
   sfxSource: {fileID: 1768664479350369450}
-  sounds:
-  - name: pop
-    clip: {fileID: 8300000, guid: 5245b2accb7814e30965788f6b361050, type: 3}
-    volume: 1
-    pitch: 0
-    loop: 0
+  sounds: []
   masterVolume: 1
   musicVolume: 0.7
   sfxVolume: 1
