@@ -12,25 +12,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 845030a112fc44196a84ae8d65bd63f9, type: 3}
   m_Name: DefaultLevel
   m_EditorClassIdentifier: Assembly-CSharp::LevelConfig
-  rows: 8
-  columns: 8
   turnDuration: 10
   healthCap: 100
-  manaCap: 100
-  manaBurstThreshold: 30
-  manaBurstAttackBonus: 8
+  timePerBlueOrb: 1
   shieldCap: 30
   specialBurstThreshold: 12
   specialBurstAttackBonus: 18
   shieldBlockRatio: 0.7
   attackPerOrb: 4
-  manaPerOrb: 2
   healPerOrb: 2
   shieldPerOrb: 1
   specialPerOrb: 1
   enemyName: CPU
-  cpuInitialThinkDelay: 0.7
-  cpuThinkInterval: 1.15
   redWeight: 5
   blueWeight: 1
   greenWeight: 1

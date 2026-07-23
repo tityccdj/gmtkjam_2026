@@ -2,11 +2,13 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>Applies the game's Free Cheese typeface to every TMP label in every scene.</summary>
+/// <summary>Applies the game's Yazo typeface to every TMP label in every scene.</summary>
 public static class GameFontController
 {
-    private const string SourceFontPath = "fonts/FreeCheeseR";
+    private const string SourceFontPath = "fonts/Yazo";
+    private const string CountdownSourceFontPath = "fonts/FreeCheeseR";
     private static TMP_FontAsset gameFont;
+    private static TMP_FontAsset countdownFont;
     private static bool initialized;
 
     public static TMP_FontAsset Font
@@ -15,6 +17,15 @@ public static class GameFontController
         {
             EnsureFont();
             return gameFont;
+        }
+    }
+
+    public static TMP_FontAsset CountdownFont
+    {
+        get
+        {
+            EnsureCountdownFont();
+            return countdownFont;
         }
     }
 
@@ -50,6 +61,12 @@ public static class GameFontController
         {
             label.font = gameFont;
         }
+
+        UIBattleHud[] battleHuds = Object.FindObjectsByType<UIBattleHud>(FindObjectsInactive.Include);
+        foreach (UIBattleHud battleHud in battleHuds)
+        {
+            battleHud.ApplyCountdownStyle();
+        }
     }
 
     private static void EnsureFont()
@@ -67,7 +84,26 @@ public static class GameFontController
         }
 
         gameFont = TMP_FontAsset.CreateFontAsset(sourceFont);
-        gameFont.name = "FreeCheeseR Runtime TMP";
+        gameFont.name = "Yazo SDF";
         gameFont.atlasPopulationMode = AtlasPopulationMode.Dynamic;
+    }
+
+    private static void EnsureCountdownFont()
+    {
+        if (countdownFont != null)
+        {
+            return;
+        }
+
+        Font sourceFont = Resources.Load<Font>(CountdownSourceFontPath);
+        if (sourceFont == null)
+        {
+            Debug.LogError($"Countdown font not found at Resources/{CountdownSourceFontPath}.ttf");
+            return;
+        }
+
+        countdownFont = TMP_FontAsset.CreateFontAsset(sourceFont);
+        countdownFont.name = "FreeCheese Countdown SDF";
+        countdownFont.atlasPopulationMode = AtlasPopulationMode.Dynamic;
     }
 }

@@ -10,13 +10,22 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 #endif
 
-/// <summary>
-/// Controller for the Procedural scene's match-3 battle. The board, HUD, and fighter
-/// panels are scene-authored (UIBattleHud/UIBattleBoard/UIFighterPanel); this script
-/// only owns match rules, turn/CPU logic, and input.
-/// </summary>
+
 public sealed class ProceduralMatchFighter : MonoBehaviour
 {
+    public enum BattleGameMode
+    {
+        Story,
+        FreePlay
+    }
+
+    public enum EnemyDifficulty
+    {
+        Easy,
+        Normal,
+        Hard
+    }
+
     private enum OrbType
     {
         Red,
@@ -30,9 +39,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         public string Name;
         public int Health;
-        public int Mana;
         public int Shield;
         public int Special;
+        public int StoredTime;
         public readonly int[] Pending = new int[5];
 
         public Fighter(string name)
@@ -79,14 +88,16 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         new Color(0.72f, 0.30f, 1f)
     };
 
-    private static readonly string[] ShortNames = { "ATK", "MP", "HP", "SH", "SP" };
+    private static readonly string[] ShortNames = { "ATK", "TIME", "HP", "SH", "SP" };
 
     private OrbView[,] board;
     private readonly Fighter player = new Fighter("PLAYER");
     private readonly Fighter cpu = new Fighter("CPU");
 
     [Header("Game Mode")]
+    [SerializeField] private BattleGameMode gameMode = BattleGameMode.Story;
     [SerializeField] private bool playerVsPlayer = false;
+    [SerializeField] private EnemyDifficulty enemyDifficulty = EnemyDifficulty.Normal;
 
     [Header("Level")]
     [SerializeField] private LevelConfig levelConfig;
@@ -113,20 +124,25 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private int cursorRow;
     private int cursorColumn;
     private int combo;
+    private int killScore;
+    private int roundNumber = 1;
+    private int enemyAttackBonus;
 
     private bool IsHumanTurn => playerTurn || playerVsPlayer;
+    private bool IsFreePlay => !playerVsPlayer && gameMode == BattleGameMode.FreePlay;
 
     private void Awake()
     {
-        rows = Mathf.Max(3, levelConfig.rows);
-        columns = Mathf.Max(3, levelConfig.columns);
+        int boardSize = GetBoardSizeForDifficulty();
+        rows = boardSize;
+        columns = boardSize;
         turnDuration = levelConfig.turnDuration;
         timeRemaining = turnDuration;
         board = new OrbView[rows, columns];
 
         player.Health = levelConfig.healthCap;
         cpu.Health = levelConfig.healthCap;
-        cpu.Name = levelConfig.enemyName;
+        cpu.Name = IsFreePlay ? "ENEMY #1" : levelConfig.enemyName;
         if (playerVsPlayer)
         {
             player.Name = "PLAYER 1";
@@ -142,6 +158,39 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         battleBoard.ConfigureGrid(rows, columns);
         FillInitialBoard();
         PrepareForInput();
+    }
+
+    private int GetBoardSizeForDifficulty()
+    {
+        switch (enemyDifficulty)
+        {
+            case EnemyDifficulty.Easy:
+                return UnityEngine.Random.Range(4, 6);
+            case EnemyDifficulty.Hard:
+                return UnityEngine.Random.Range(9, 13);
+            default:
+                return UnityEngine.Random.Range(6, 9);
+        }
+    }
+
+    private float GetCpuThinkInterval()
+    {
+        switch (enemyDifficulty)
+        {
+            case EnemyDifficulty.Easy: return 1.85f;
+            case EnemyDifficulty.Hard: return 0.55f;
+            default: return 1.15f;
+        }
+    }
+
+    private float GetCpuInitialDelay()
+    {
+        switch (enemyDifficulty)
+        {
+            case EnemyDifficulty.Easy: return 1.1f;
+            case EnemyDifficulty.Hard: return 0.35f;
+            default: return 0.7f;
+        }
     }
 
     private void Update()
@@ -178,7 +227,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             cpuMoveTimer -= Time.deltaTime;
             if (cpuMoveTimer <= 0f)
             {
-                cpuMoveTimer = levelConfig.cpuThinkInterval;
+                cpuMoveTimer = GetCpuThinkInterval();
                 BoardMove move = FindBestCpuMove();
                 if (move.IsValid)
                 {
@@ -331,13 +380,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         boardBusy = false;
         timeRemaining = turnDuration;
         hud.SetTurn("READY?", new Color(1f, 0.88f, 0.35f));
-        hud.SetTimer("10", Color.white, false);
+        hud.SetTimer(Mathf.CeilToInt(turnDuration).ToString(), Color.white, false);
         hud.SetMessage(playerVsPlayer
             ? "PRESS P1 ENTER / P2 0 / GAMEPAD A"
             : "PRESS ENTER / GAMEPAD A");
         hud.SetHook(playerVsPlayer
             ? "P1: WASD + ENTER    P2: 1 2 3 5 + 0"
-            : "ENABLE CONTROLS TO BEGIN");
+            : IsFreePlay
+                ? $"FREE PLAY  |  {enemyDifficulty.ToString().ToUpper()}  |  BLUE = +1s NEXT TURN"
+                : $"STORY  |  {enemyDifficulty.ToString().ToUpper()}  |  BLUE = +1s NEXT TURN");
         MoveFocusTo(0, 0);
         UpdateHud();
     }
@@ -638,7 +689,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         foreach (OrbView orb in matches)
         {
-            owner.Pending[(int)orb.Type] += chain;
+            if (orb.Type == OrbType.Blue)
+            {
+                owner.Pending[(int)OrbType.Blue] += 1;
+                owner.StoredTime += Mathf.RoundToInt(levelConfig.timePerBlueOrb);
+            }
+            else
+            {
+                owner.Pending[(int)orb.Type] += chain;
+            }
         }
         UpdateHud();
     }
@@ -726,12 +785,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         yield return new WaitForSeconds(0.45f);
 
         int attack = acting.Pending[(int)OrbType.Red] * levelConfig.attackPerOrb;
-        int manaGain = acting.Pending[(int)OrbType.Blue] * levelConfig.manaPerOrb;
+        int timeBonus = Mathf.RoundToInt(
+            acting.Pending[(int)OrbType.Blue] * levelConfig.timePerBlueOrb);
         int heal = acting.Pending[(int)OrbType.Green] * levelConfig.healPerOrb;
         int shieldGain = acting.Pending[(int)OrbType.Yellow] * levelConfig.shieldPerOrb;
         int specialGain = acting.Pending[(int)OrbType.Purple] * levelConfig.specialPerOrb;
 
-        acting.Mana = Mathf.Min(levelConfig.manaCap, acting.Mana + manaGain);
         acting.Health = Mathf.Min(levelConfig.healthCap, acting.Health + heal);
         acting.Shield = Mathf.Min(levelConfig.shieldCap, acting.Shield + shieldGain);
         acting.Special += specialGain;
@@ -743,13 +802,6 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             acting.Special %= levelConfig.specialBurstThreshold;
         }
 
-        int manaBursts = acting.Mana / levelConfig.manaBurstThreshold;
-        if (manaBursts > 0)
-        {
-            attack += manaBursts * levelConfig.manaBurstAttackBonus;
-            acting.Mana %= levelConfig.manaBurstThreshold;
-        }
-
         int maxBlockedThisHit = Mathf.FloorToInt(attack * levelConfig.shieldBlockRatio);
         int blocked = Mathf.Min(target.Shield, maxBlockedThisHit);
         target.Shield -= blocked;
@@ -759,13 +811,37 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         Array.Clear(acting.Pending, 0, acting.Pending.Length);
         UpdateHud();
 
-        hud.SetMessage(BuildResolutionMessage(acting, damage, blocked, heal, shieldGain, manaGain, specialBursts));
+        hud.SetMessage(BuildResolutionMessage(acting, damage, blocked, heal, shieldGain, timeBonus, specialBursts));
         if (damage > 0)
         {
             UIFighterPanel hitPanel = target == player ? playerPanel : enemyPanel;
             yield return hitPanel.Flash(new Color(1f, 0.14f, 0.12f));
         }
         yield return new WaitForSeconds(1f);
+
+        if (IsFreePlay)
+        {
+            if (cpu.Health <= 0)
+            {
+                RegisterFreePlayKill();
+                yield return new WaitForSeconds(0.8f);
+            }
+            else
+            {
+                yield return ResolveFreePlayEnemyAction();
+            }
+
+            if (player.Health <= 0)
+            {
+                EndBattle(cpu);
+                yield break;
+            }
+
+            roundNumber++;
+            boardBusy = false;
+            BeginTurn(true);
+            yield break;
+        }
 
         if (target.Health <= 0)
         {
@@ -783,23 +859,117 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         int blocked,
         int heal,
         int shieldGain,
-        int manaGain,
+        int timeBonus,
         int specialBursts)
     {
         string summary = $"{acting.Name}: {damage} DAMAGE";
         if (blocked > 0) summary += $"  |  {blocked} BLOCKED";
         if (heal > 0) summary += $"  |  +{heal} HP";
         if (shieldGain > 0) summary += $"  |  +{shieldGain} SHIELD";
-        if (manaGain > 0) summary += $"  |  +{manaGain} MANA";
+        if (timeBonus > 0) summary += $"  |  +{timeBonus}s NEXT TURN";
         if (specialBursts > 0) summary += "  |  SPECIAL!";
         return summary;
+    }
+
+    private IEnumerator ResolveFreePlayEnemyAction()
+    {
+        int action = UnityEngine.Random.Range(0, 4);
+        int power;
+        switch (enemyDifficulty)
+        {
+            case EnemyDifficulty.Easy: power = 6; break;
+            case EnemyDifficulty.Hard: power = 15; break;
+            default: power = 10; break;
+        }
+
+        switch (action)
+        {
+            case 0:
+            {
+                int attack = power + enemyAttackBonus;
+                int blocked = Mathf.Min(
+                    player.Shield,
+                    Mathf.FloorToInt(attack * levelConfig.shieldBlockRatio));
+                player.Shield -= blocked;
+                int damage = attack - blocked;
+                player.Health = Mathf.Max(0, player.Health - damage);
+                hud.SetMessage($"ENEMY ATTACK: {damage} DAMAGE  |  {blocked} BLOCKED");
+                UpdateHud();
+                if (damage > 0)
+                {
+                    yield return playerPanel.Flash(new Color(1f, 0.14f, 0.12f));
+                }
+                break;
+            }
+            case 1:
+            {
+                int heal = Mathf.RoundToInt(power * 1.5f);
+                cpu.Health = Mathf.Min(levelConfig.healthCap, cpu.Health + heal);
+                hud.SetMessage($"ENEMY HEAL: +{heal} HP");
+                UpdateHud();
+                yield return enemyPanel.Flash(new Color(0.20f, 1f, 0.42f));
+                break;
+            }
+            case 2:
+            {
+                int buff = enemyDifficulty == EnemyDifficulty.Hard ? 6 :
+                    enemyDifficulty == EnemyDifficulty.Easy ? 2 : 4;
+                enemyAttackBonus += buff;
+                cpu.Shield = Mathf.Min(levelConfig.shieldCap, cpu.Shield + buff);
+                hud.SetMessage($"ENEMY POWER UP: +{buff} ATTACK / +{buff} SHIELD");
+                UpdateHud();
+                yield return enemyPanel.Flash(new Color(1f, 0.83f, 0.20f));
+                break;
+            }
+            default:
+            {
+                int specialGain = enemyDifficulty == EnemyDifficulty.Hard ? 8 :
+                    enemyDifficulty == EnemyDifficulty.Easy ? 4 : 6;
+                cpu.Special += specialGain;
+                if (cpu.Special >= levelConfig.specialBurstThreshold)
+                {
+                    cpu.Special -= levelConfig.specialBurstThreshold;
+                    int damage = power + levelConfig.specialBurstAttackBonus + enemyAttackBonus;
+                    player.Health = Mathf.Max(0, player.Health - damage);
+                    hud.SetMessage($"ENEMY SPECIAL: {damage} DIRECT DAMAGE!");
+                    UpdateHud();
+                    yield return playerPanel.Flash(new Color(0.72f, 0.30f, 1f));
+                }
+                else
+                {
+                    hud.SetMessage($"ENEMY CHARGES SPECIAL: {cpu.Special}/{levelConfig.specialBurstThreshold}");
+                    UpdateHud();
+                    yield return enemyPanel.Flash(new Color(0.72f, 0.30f, 1f));
+                }
+                break;
+            }
+        }
+
+        yield return new WaitForSeconds(0.9f);
+    }
+
+    private void RegisterFreePlayKill()
+    {
+        killScore++;
+        enemyAttackBonus += 2;
+        cpu.Name = $"ENEMY #{killScore + 1}";
+        cpu.Health = levelConfig.healthCap;
+        cpu.Shield = 0;
+        cpu.Special = 0;
+        cpu.StoredTime = 0;
+        Array.Clear(cpu.Pending, 0, cpu.Pending.Length);
+        hud.SetMessage($"ENEMY DEFEATED!  KILL SCORE: {killScore}");
+        UpdateHud();
     }
 
     private void BeginTurn(bool isPlayer)
     {
         playerTurn = isPlayer;
-        timeRemaining = turnDuration;
-        cpuMoveTimer = levelConfig.cpuInitialThinkDelay;
+        Fighter activeFighter = isPlayer ? player : cpu;
+        int storedTime = activeFighter.StoredTime;
+        activeFighter.StoredTime = 0;
+        timeRemaining = turnDuration + storedTime;
+        cpuMoveTimer = GetCpuInitialDelay();
         combo = 0;
         selectedOrb = null;
         if (IsHumanTurn)
@@ -818,20 +988,26 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             battleBoard.HideSelection();
         }
         hud.SetTurn(
-            isPlayer
+            IsFreePlay
+                ? $"FREE PLAY  -  ROUND {roundNumber}"
+                : isPlayer
                 ? (playerVsPlayer ? "PLAYER 1 TURN" : "PLAYER TURN")
                 : (playerVsPlayer ? "PLAYER 2 TURN" : "CPU TURN"),
             isPlayer
                 ? new Color(0.22f, 0.72f, 1f)
                 : new Color(1f, 0.27f, 0.30f));
         hud.SetMessage(
-            isPlayer
+            IsFreePlay
+                ? $"Defeat {cpu.Name}. Blue stores +{levelConfig.timePerBlueOrb:0}s for your next turn."
+                : isPlayer
                 ? "Player 1: build your queue before time runs out."
                 : playerVsPlayer
                     ? "Player 2: build your queue before time runs out."
                     : "CPU is planning...");
         hud.SetHook(
-            isPlayer
+            IsFreePlay
+                ? $"KILLS {killScore}  |  ENEMY BONUS ATK +{enemyAttackBonus}"
+                : isPlayer
                 ? "RACE AGAINST TIME. MATCH WISELY. SURVIVE THE COUNTDOWN."
                 : "EVERY 10 SECONDS, DESTINY IS DECIDED.");
         UpdateTimer();
@@ -853,7 +1029,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 : new Color(1f, 0.27f, 0.30f));
         hud.SetTimer("0", Color.white, false);
         hud.SetMessage(
-            playerVsPlayer
+            IsFreePlay
+                ? $"SURVIVED {killScore} KILLS"
+                : playerVsPlayer
                 ? $"{winner.Name} decided destiny."
                 : playerOneWon
                     ? "Destiny favors you."
@@ -891,6 +1069,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private BoardMove FindBestCpuMove()
     {
+        if (enemyDifficulty == EnemyDifficulty.Easy)
+        {
+            return FindRandomCpuMove();
+        }
+
         int bestScore = int.MinValue;
         List<BoardMove> bestMoves = new List<BoardMove>();
 
@@ -915,6 +1098,44 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             return BoardMove.Invalid;
         }
         return bestMoves[UnityEngine.Random.Range(0, bestMoves.Count)];
+    }
+
+    private BoardMove FindRandomCpuMove()
+    {
+        List<BoardMove> validMoves = new List<BoardMove>();
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                if (column + 1 < columns &&
+                    IsValidMove(row, column, row, column + 1))
+                {
+                    validMoves.Add(new BoardMove(row, column, row, column + 1));
+                }
+                if (row + 1 < rows &&
+                    IsValidMove(row, column, row + 1, column))
+                {
+                    validMoves.Add(new BoardMove(row, column, row + 1, column));
+                }
+            }
+        }
+
+        if (validMoves.Count == 0)
+        {
+            ShuffleBoard();
+            return BoardMove.Invalid;
+        }
+        return validMoves[UnityEngine.Random.Range(0, validMoves.Count)];
+    }
+
+    private bool IsValidMove(int rowA, int columnA, int rowB, int columnB)
+    {
+        OrbView first = board[rowA, columnA];
+        OrbView second = board[rowB, columnB];
+        SwapTypes(first, second);
+        bool valid = FindMatches().Count > 0;
+        SwapTypes(first, second);
+        return valid;
     }
 
     private void ScoreCpuMove(
@@ -995,7 +1216,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private void UpdateTimer()
     {
         float shownTime = Mathf.Max(0f, timeRemaining);
-        string text = shownTime > 3f ? shownTime.ToString("0.0") : Mathf.CeilToInt(shownTime).ToString();
+        string text = Mathf.CeilToInt(shownTime).ToString();
         Color color = shownTime <= 3f
             ? OrbColors[(int)OrbType.Red]
             : new Color(1f, 0.94f, 0.72f);
@@ -1004,15 +1225,31 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void UpdateHud()
     {
-        playerPanel.SetStats($"HP {player.Health}/{levelConfig.healthCap}   MP {player.Mana}/{levelConfig.manaBurstThreshold}\nSH {player.Shield}   SP {player.Special}/{levelConfig.specialBurstThreshold}");
-        enemyPanel.SetStats($"HP {cpu.Health}/{levelConfig.healthCap}   MP {cpu.Mana}/{levelConfig.manaBurstThreshold}\nSH {cpu.Shield}   SP {cpu.Special}/{levelConfig.specialBurstThreshold}");
+        playerPanel.SetName(player.Name);
+        enemyPanel.SetName(cpu.Name);
+        playerPanel.SetStats(
+            $"HP {player.Health}/{levelConfig.healthCap}   NEXT +{player.StoredTime}s\n" +
+            $"SH {player.Shield}   SP {player.Special}/{levelConfig.specialBurstThreshold}" +
+            (IsFreePlay ? $"   KILLS {killScore}" : ""));
+        enemyPanel.SetStats(
+            $"HP {cpu.Health}/{levelConfig.healthCap}   NEXT +{cpu.StoredTime}s\n" +
+            $"SH {cpu.Shield}   SP {cpu.Special}/{levelConfig.specialBurstThreshold}" +
+            (IsFreePlay
+                ? $"   ATK +{enemyAttackBonus}"
+                : $"   {enemyDifficulty.ToString().ToUpper()}"));
         playerPanel.SetHealth((float)player.Health / levelConfig.healthCap);
         enemyPanel.SetHealth((float)cpu.Health / levelConfig.healthCap);
 
         for (int i = 0; i < ShortNames.Length; i++)
         {
-            playerPanel.SetPending(i, $"{ShortNames[i]}\n{player.Pending[i]}", player.Pending[i] > 0 ? OrbColors[i] : Color.white);
-            enemyPanel.SetPending(i, $"{ShortNames[i]}\n{cpu.Pending[i]}", cpu.Pending[i] > 0 ? OrbColors[i] : Color.white);
+            string playerValue = i == (int)OrbType.Blue
+                ? $"+{player.Pending[i] * levelConfig.timePerBlueOrb:0}s"
+                : player.Pending[i].ToString();
+            string enemyValue = i == (int)OrbType.Blue
+                ? $"+{cpu.Pending[i] * levelConfig.timePerBlueOrb:0}s"
+                : cpu.Pending[i].ToString();
+            playerPanel.SetPending(i, $"{ShortNames[i]}\n{playerValue}", player.Pending[i] > 0 ? OrbColors[i] : Color.white);
+            enemyPanel.SetPending(i, $"{ShortNames[i]}\n{enemyValue}", cpu.Pending[i] > 0 ? OrbColors[i] : Color.white);
         }
     }
 
