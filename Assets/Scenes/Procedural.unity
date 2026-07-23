@@ -266,7 +266,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1526561734}
   - component: {fileID: 1526561733}
-  - component: {fileID: 1526561735}
   m_Layer: 0
   m_Name: mock_arena
   m_TagString: Untagged
@@ -350,21 +349,6 @@ Transform:
   - {fileID: 1615564645}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1526561735
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1526561732}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 551654a1a85125d4990c90f573102d80, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ProceduralMatchFighter
-  elementMap:
-    panelPlayer: {fileID: 1554682283}
-    panelEnemy: {fileID: 1615564645}
 --- !u!1 &1554682282
 GameObject:
   m_ObjectHideFlags: 0
@@ -606,8 +590,32 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 7515111052881346443, guid: b96150349390144589e6e45f21bb16f8, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2058021458}
   m_SourcePrefab: {fileID: 100100000, guid: b96150349390144589e6e45f21bb16f8, type: 3}
+--- !u!1 &2058021457 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 7515111052881346443, guid: b96150349390144589e6e45f21bb16f8, type: 3}
+  m_PrefabInstance: {fileID: 2058021456}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &2058021458
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2058021457}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 551654a1a85125d4990c90f573102d80, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ProceduralMatchFighter
+  playerVsPlayer: 0
+  elementMap:
+    panelPlayer: {fileID: 1554682283}
+    panelEnemy: {fileID: 1615564645}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

@@ -35,7 +35,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private sealed class Fighter
     {
-        public readonly string Name;
+        public string Name;
         public int Health = 100;
         public int Mana;
         public int Shield;
@@ -103,6 +103,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private readonly List<TMP_Text> playerPendingTexts = new List<TMP_Text>();
     private readonly List<TMP_Text> cpuPendingTexts = new List<TMP_Text>();
 
+    [Header("Game Mode")]
+    [SerializeField] private bool playerVsPlayer = false;
     [SerializeField] private SceneElementMap elementMap = new SceneElementMap();
 
     private Sprite circleSprite;
@@ -110,7 +112,6 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private RectTransform boardShell;
     private RectTransform boardRoot;
     private RectTransform focusFrame;
-    private RectTransform lockedFrame;
     private TMP_Text timerText;
     private TMP_Text turnText;
     private TMP_Text messageText;
@@ -132,6 +133,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private int cursorColumn;
     private int combo;
 
+    private bool IsHumanTurn => playerTurn || playerVsPlayer;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void CreateForProceduralScene()
     {
@@ -147,6 +150,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void Awake()
     {
+        if (playerVsPlayer)
+        {
+            player.Name = "PLAYER 1";
+            cpu.Name = "PLAYER 2";
+        }
+
         Sprite[] sprites = Resources.LoadAll<Sprite>("sprites/circle");
         if (sprites.Length > 0)
         {
@@ -171,7 +180,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         if (!inputReady)
         {
-            if (SubmitPressed())
+            if (AnyStartPressed())
             {
                 inputReady = true;
                 BeginTurn(true);
@@ -187,9 +196,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             return;
         }
 
-        if (playerTurn)
+        if (IsHumanTurn)
         {
-            HandlePlayerNavigation();
+            HandleHumanNavigation(playerTurn ? 0 : 1);
         }
         else
         {
@@ -289,10 +298,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         hookText.fontStyle = FontStyles.Bold;
         SetRect(hookText.rectTransform, new Vector2(0.5f, 0.065f), new Vector2(760f, 36f), Vector2.zero);
 
-        focusFrame = CreateSelectionFrame(boardShell, "Focus Selection", Color.white);
-        lockedFrame = CreateSelectionFrame(boardShell, "Locked Selection", new Color(1f, 0.82f, 0.18f));
+        focusFrame = CreateSelectionFrame(boardShell, "Selection Cursor", Color.white);
         focusFrame.gameObject.SetActive(false);
-        lockedFrame.gameObject.SetActive(false);
     }
 
     private void CreateHeader(RectTransform root)
@@ -464,7 +471,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void OnOrbPointerEntered(OrbView orb)
     {
-        if (battleEnded)
+        if (battleEnded || (inputReady && !IsHumanTurn))
         {
             return;
         }
@@ -479,7 +486,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             return;
         }
         mouseHoverOrb = null;
-        if (!battleEnded && playerTurn && !boardBusy)
+        if (!battleEnded && (!inputReady || IsHumanTurn) && !boardBusy)
         {
             MoveFocusTo(0, 0);
         }
@@ -498,7 +505,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void SubmitFocusedOrb()
     {
-        if (!playerTurn || boardBusy || battleEnded)
+        if (!IsHumanTurn || boardBusy || battleEnded)
         {
             return;
         }
@@ -507,7 +514,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         if (selectedOrb == null)
         {
             selectedOrb = orb;
-            ShowFrameAt(lockedFrame, orb.Row, orb.Column);
+            RefreshSelectionFrames();
             messageText.text = "Selected - move to an adjacent orb and press Action";
             return;
         }
@@ -515,7 +522,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         if (selectedOrb == orb)
         {
             selectedOrb = null;
-            lockedFrame.gameObject.SetActive(false);
+            RefreshSelectionFrames();
             messageText.text = "";
             return;
         }
@@ -524,13 +531,13 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             OrbView first = selectedOrb;
             selectedOrb = null;
-            lockedFrame.gameObject.SetActive(false);
+            focusFrame.gameObject.SetActive(false);
             StartCoroutine(TrySwap(first, orb, true));
         }
         else
         {
             selectedOrb = orb;
-            ShowFrameAt(lockedFrame, orb.Row, orb.Column);
+            RefreshSelectionFrames();
             messageText.text = "Selection moved - choose an adjacent orb";
         }
     }
@@ -544,18 +551,21 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         turnText.color = new Color(1f, 0.88f, 0.35f);
         timerText.text = "10";
         timerText.color = Color.white;
-        messageText.text = "PRESS ENTER / SPACE / GAMEPAD SOUTH";
-        hookText.text = "ENABLE CONTROLS TO BEGIN";
+        messageText.text = playerVsPlayer
+            ? "PRESS P1 ENTER / P2 0 / GAMEPAD A"
+            : "PRESS ENTER / GAMEPAD A";
+        hookText.text = playerVsPlayer
+            ? "P1: WASD + ENTER    P2: 1 2 3 5 + 0"
+            : "ENABLE CONTROLS TO BEGIN";
         MoveFocusTo(0, 0);
-        lockedFrame.gameObject.SetActive(false);
         UpdateHud();
     }
 
-    private void HandlePlayerNavigation()
+    private void HandleHumanNavigation(int humanIndex)
     {
         if (mouseHoverOrb == null)
         {
-            Vector2Int direction = ReadNavigationDirection();
+            Vector2Int direction = ReadNavigationDirection(humanIndex);
             if (direction != Vector2Int.zero && Time.unscaledTime >= nextNavigationTime)
             {
                 nextNavigationTime = Time.unscaledTime + 0.16f;
@@ -565,14 +575,14 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             }
         }
 
-        if (SubmitPressed())
+        if (SubmitPressed(humanIndex))
         {
             SubmitFocusedOrb();
         }
-        else if (CancelPressed() && selectedOrb != null)
+        else if (CancelPressed(humanIndex) && selectedOrb != null)
         {
             selectedOrb = null;
-            lockedFrame.gameObject.SetActive(false);
+            RefreshSelectionFrames();
             messageText.text = "Selection cancelled";
         }
     }
@@ -581,7 +591,33 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         cursorRow = row;
         cursorColumn = column;
-        ShowFrameAt(focusFrame, row, column);
+        RefreshSelectionFrames();
+    }
+
+    private void RefreshSelectionFrames()
+    {
+        bool canShow = !battleEnded &&
+                       !boardBusy &&
+                       (!inputReady || IsHumanTurn);
+        if (!canShow)
+        {
+            focusFrame.gameObject.SetActive(false);
+            return;
+        }
+
+        ShowFrameAt(focusFrame, cursorRow, cursorColumn);
+        SetSelectionFrameColor(
+            focusFrame,
+            selectedOrb != null ? new Color(1f, 0.82f, 0.18f) : Color.white);
+    }
+
+    private static void SetSelectionFrameColor(RectTransform frame, Color color)
+    {
+        Image[] corners = frame.GetComponentsInChildren<Image>(true);
+        foreach (Image corner in corners)
+        {
+            corner.color = color;
+        }
     }
 
     private static void ShowFrameAt(RectTransform frame, int row, int column)
@@ -625,49 +661,83 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         return frame;
     }
 
-    private static bool SubmitPressed()
+    private static bool AnyStartPressed()
+    {
+        return SubmitPressed(0) || SubmitPressed(1);
+    }
+
+    private static bool SubmitPressed(int humanIndex)
     {
 #if ENABLE_INPUT_SYSTEM
-        bool keyboard = Keyboard.current != null &&
-                        (Keyboard.current.enterKey.wasPressedThisFrame ||
-                         Keyboard.current.numpadEnterKey.wasPressedThisFrame ||
-                         Keyboard.current.spaceKey.wasPressedThisFrame);
-        bool gamepad = Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame;
+        bool keyboard = false;
+        if (Keyboard.current != null)
+        {
+            keyboard = humanIndex == 0
+                ? Keyboard.current.enterKey.wasPressedThisFrame ||
+                  Keyboard.current.numpadEnterKey.wasPressedThisFrame
+                : Keyboard.current.digit0Key.wasPressedThisFrame ||
+                  Keyboard.current.numpad0Key.wasPressedThisFrame;
+        }
+        Gamepad pad = GetGamepad(humanIndex);
+        bool gamepad = pad != null && pad.buttonSouth.wasPressedThisFrame;
         return keyboard || gamepad;
 #else
-        return Input.GetKeyDown(KeyCode.Return) ||
-               Input.GetKeyDown(KeyCode.KeypadEnter) ||
-               Input.GetKeyDown(KeyCode.Space) ||
-               Input.GetButtonDown("Submit");
+        if (humanIndex == 0)
+        {
+            return Input.GetKeyDown(KeyCode.Return) ||
+                   Input.GetKeyDown(KeyCode.KeypadEnter) ||
+                   Input.GetKeyDown(KeyCode.Joystick1Button0);
+        }
+        return Input.GetKeyDown(KeyCode.Alpha0) ||
+               Input.GetKeyDown(KeyCode.Keypad0) ||
+               Input.GetKeyDown(KeyCode.Joystick2Button0);
 #endif
     }
 
-    private static bool CancelPressed()
+    private static bool CancelPressed(int humanIndex)
     {
 #if ENABLE_INPUT_SYSTEM
-        bool keyboard = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
-        bool gamepad = Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame;
+        bool keyboard = humanIndex == 0 &&
+                        Keyboard.current != null &&
+                        Keyboard.current.escapeKey.wasPressedThisFrame;
+        Gamepad pad = GetGamepad(humanIndex);
+        bool gamepad = pad != null && pad.buttonEast.wasPressedThisFrame;
         return keyboard || gamepad;
 #else
-        return Input.GetKeyDown(KeyCode.Escape) || Input.GetButtonDown("Cancel");
+        if (humanIndex == 0)
+        {
+            return Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Joystick1Button1);
+        }
+        return Input.GetKeyDown(KeyCode.Joystick2Button1);
 #endif
     }
 
-    private static Vector2Int ReadNavigationDirection()
+    private static Vector2Int ReadNavigationDirection(int humanIndex)
     {
 #if ENABLE_INPUT_SYSTEM
         Vector2 input = Vector2.zero;
         if (Keyboard.current != null)
         {
-            if (Keyboard.current.leftArrowKey.isPressed || Keyboard.current.aKey.isPressed) input.x -= 1f;
-            if (Keyboard.current.rightArrowKey.isPressed || Keyboard.current.dKey.isPressed) input.x += 1f;
-            if (Keyboard.current.downArrowKey.isPressed || Keyboard.current.sKey.isPressed) input.y -= 1f;
-            if (Keyboard.current.upArrowKey.isPressed || Keyboard.current.wKey.isPressed) input.y += 1f;
+            if (humanIndex == 0)
+            {
+                if (Keyboard.current.aKey.isPressed) input.x -= 1f;
+                if (Keyboard.current.dKey.isPressed) input.x += 1f;
+                if (Keyboard.current.sKey.isPressed) input.y -= 1f;
+                if (Keyboard.current.wKey.isPressed) input.y += 1f;
+            }
+            else
+            {
+                if (Keyboard.current.digit1Key.isPressed || Keyboard.current.numpad1Key.isPressed) input.x -= 1f;
+                if (Keyboard.current.digit3Key.isPressed || Keyboard.current.numpad3Key.isPressed) input.x += 1f;
+                if (Keyboard.current.digit2Key.isPressed || Keyboard.current.numpad2Key.isPressed) input.y -= 1f;
+                if (Keyboard.current.digit5Key.isPressed || Keyboard.current.numpad5Key.isPressed) input.y += 1f;
+            }
         }
-        if (Gamepad.current != null)
+        Gamepad pad = GetGamepad(humanIndex);
+        if (pad != null)
         {
-            input += Gamepad.current.dpad.ReadValue();
-            Vector2 stick = Gamepad.current.leftStick.ReadValue();
+            input += pad.dpad.ReadValue();
+            Vector2 stick = pad.leftStick.ReadValue();
             if (Mathf.Abs(stick.x) > 0.55f) input.x += Mathf.Sign(stick.x);
             if (Mathf.Abs(stick.y) > 0.55f) input.y += Mathf.Sign(stick.y);
         }
@@ -675,17 +745,39 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         if (Mathf.Abs(input.y) > 0.1f) return new Vector2Int(0, (int)Mathf.Sign(input.y));
         return Vector2Int.zero;
 #else
-        float x = Input.GetAxisRaw("Horizontal");
-        float y = Input.GetAxisRaw("Vertical");
+        float x = 0f;
+        float y = 0f;
+        if (humanIndex == 0)
+        {
+            if (Input.GetKey(KeyCode.A)) x -= 1f;
+            if (Input.GetKey(KeyCode.D)) x += 1f;
+            if (Input.GetKey(KeyCode.S)) y -= 1f;
+            if (Input.GetKey(KeyCode.W)) y += 1f;
+        }
+        else
+        {
+            if (Input.GetKey(KeyCode.Alpha1) || Input.GetKey(KeyCode.Keypad1)) x -= 1f;
+            if (Input.GetKey(KeyCode.Alpha3) || Input.GetKey(KeyCode.Keypad3)) x += 1f;
+            if (Input.GetKey(KeyCode.Alpha2) || Input.GetKey(KeyCode.Keypad2)) y -= 1f;
+            if (Input.GetKey(KeyCode.Alpha5) || Input.GetKey(KeyCode.Keypad5)) y += 1f;
+        }
         if (Mathf.Abs(x) > Mathf.Abs(y)) return new Vector2Int((int)Mathf.Sign(x), 0);
         if (Mathf.Abs(y) > 0.1f) return new Vector2Int(0, (int)Mathf.Sign(y));
         return Vector2Int.zero;
 #endif
     }
 
+#if ENABLE_INPUT_SYSTEM
+    private static Gamepad GetGamepad(int humanIndex)
+    {
+        return Gamepad.all.Count > humanIndex ? Gamepad.all[humanIndex] : null;
+    }
+#endif
+
     private IEnumerator TrySwap(OrbView first, OrbView second, bool showInvalidMessage)
     {
         boardBusy = true;
+        RefreshSelectionFrames();
         SwapTypes(first, second);
         yield return AnimateSwap(first, second);
 
@@ -699,6 +791,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 messageText.text = "No match - choose another move";
             }
             boardBusy = false;
+            RefreshSelectionFrames();
             yield break;
         }
 
@@ -717,6 +810,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         messageText.text = combo > 1 ? $"CHAIN x{combo}!" : "MATCH!";
         boardBusy = false;
+        RefreshSelectionFrames();
     }
 
     private IEnumerator AnimateSwap(OrbView first, OrbView second)
@@ -884,6 +978,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private IEnumerator EndTurn()
     {
         boardBusy = true;
+        RefreshSelectionFrames();
         timeRemaining = 0f;
         UpdateTimer();
 
@@ -937,12 +1032,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         if (target.Health <= 0)
         {
-            EndBattle(acting == player);
+            EndBattle(acting);
             yield break;
         }
 
-        BeginTurn(!playerTurn);
         boardBusy = false;
+        BeginTurn(!playerTurn);
     }
 
     private static IEnumerator FlashDamage(Transform targetPanel)
@@ -989,8 +1084,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         cpuMoveTimer = 0.7f;
         combo = 0;
         selectedOrb = null;
-        lockedFrame.gameObject.SetActive(false);
-        if (isPlayer)
+        if (IsHumanTurn)
         {
             if (mouseHoverOrb != null)
             {
@@ -1005,11 +1099,17 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             focusFrame.gameObject.SetActive(false);
         }
-        turnText.text = isPlayer ? "PLAYER TURN" : "CPU TURN";
+        turnText.text = isPlayer
+            ? (playerVsPlayer ? "PLAYER 1 TURN" : "PLAYER TURN")
+            : (playerVsPlayer ? "PLAYER 2 TURN" : "CPU TURN");
         turnText.color = isPlayer
             ? new Color(0.22f, 0.72f, 1f)
             : new Color(1f, 0.27f, 0.30f);
-        messageText.text = isPlayer ? "Match wisely. Build your queue before time runs out." : "CPU is planning...";
+        messageText.text = isPlayer
+            ? "Player 1: build your queue before time runs out."
+            : playerVsPlayer
+                ? "Player 2: build your queue before time runs out."
+                : "CPU is planning...";
         hookText.text = isPlayer
             ? "RACE AGAINST TIME. MATCH WISELY. SURVIVE THE COUNTDOWN."
             : "EVERY 10 SECONDS, DESTINY IS DECIDED.";
@@ -1017,14 +1117,24 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         UpdateHud();
     }
 
-    private void EndBattle(bool playerWon)
+    private void EndBattle(Fighter winner)
     {
         battleEnded = true;
         boardBusy = true;
-        turnText.text = playerWon ? "VICTORY" : "DEFEAT";
-        turnText.color = playerWon ? OrbColors[(int)OrbType.Yellow] : OrbColors[(int)OrbType.Purple];
+        RefreshSelectionFrames();
+        bool playerOneWon = winner == player;
+        turnText.text = playerVsPlayer
+            ? (playerOneWon ? "PLAYER 1 WINS" : "PLAYER 2 WINS")
+            : (playerOneWon ? "VICTORY" : "DEFEAT");
+        turnText.color = playerOneWon
+            ? new Color(0.22f, 0.72f, 1f)
+            : new Color(1f, 0.27f, 0.30f);
         timerText.text = "0";
-        messageText.text = playerWon ? "Destiny favors you." : "The CPU decided your fate.";
+        messageText.text = playerVsPlayer
+            ? $"{winner.Name} decided destiny."
+            : playerOneWon
+                ? "Destiny favors you."
+                : "The CPU decided your fate.";
         hookText.text = "Press R / GAMEPAD NORTH to restart";
         StartCoroutine(RestartListener());
     }
@@ -1035,7 +1145,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
 #if ENABLE_INPUT_SYSTEM
             bool keyboardRestart = Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame;
-            bool gamepadRestart = Gamepad.current != null && Gamepad.current.buttonNorth.wasPressedThisFrame;
+            bool gamepadRestart = false;
+            foreach (Gamepad pad in Gamepad.all)
+            {
+                if (pad.buttonNorth.wasPressedThisFrame)
+                {
+                    gamepadRestart = true;
+                    break;
+                }
+            }
             if (keyboardRestart || gamepadRestart)
 #else
             if (Input.GetKeyDown(KeyCode.R))
