@@ -15,7 +15,7 @@ public class Title : MonoBehaviour
 
         uiMainMenu.Setup(new UIMainMenu.Param
         {
-            onPlay = () => SceneLoader.Instance.LoadScene("Character"),
+            onPlay = () => SceneLoader.Instance.LoadScene("Level"),
             onSetting = () =>
             {
                 uiMainMenu.gameObject.SetActive(false);
