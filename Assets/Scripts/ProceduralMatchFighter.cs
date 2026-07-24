@@ -139,6 +139,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             levelConfig = LevelSelection.Current;
         }
+        if (LevelSelection.PlayerVsPlayer.HasValue)
+        {
+            playerVsPlayer = LevelSelection.PlayerVsPlayer.Value;
+        }
 
         int boardSize = GetBoardSizeForDifficulty();
         rows = boardSize;
@@ -1029,7 +1033,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         boardBusy = true;
         RefreshSelectionFrames();
         bool playerOneWon = winner == player;
-        
+
+        if (playerOneWon && !playerVsPlayer && !IsFreePlay)
+        {
+            UnlockNextStoryLevel();
+        }
+
         if (roundTextPanel != null)
         {
             roundTextPanel.ShowRoundText(playerOneWon);
@@ -1055,7 +1064,22 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                     ? "Destiny favors you."
                     : "The CPU decided your fate.");
         hud.SetHook("Press R / GAMEPAD NORTH to restart");
+
         StartCoroutine(RestartListener());
+    }
+
+    private static void UnlockNextStoryLevel()
+    {
+        if (LevelSelection.AllLevels == null || LevelSelection.CurrentIndex < 0)
+        {
+            return;
+        }
+
+        int nextIndex = LevelSelection.CurrentIndex + 1;
+        if (nextIndex < LevelSelection.AllLevels.Length)
+        {
+            LevelSaveState.SetUnlocked(LevelSelection.AllLevels[nextIndex], true);
+        }
     }
 
     private IEnumerator RestartListener()

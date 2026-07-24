@@ -7,7 +7,7 @@ public class UIStoryLevel : MonoBehaviour
     public struct Param
     {
         public Action onBack;
-        public Action<LevelConfig> onLevelSelected;
+        public Action<LevelConfig, int> onLevelSelected;
     }
 
     [SerializeField]
@@ -23,13 +23,15 @@ public class UIStoryLevel : MonoBehaviour
     [SerializeField]
     private LevelConfig[] levels;
 
+    public LevelConfig[] Levels => levels;
+
     public void Setup(Param param)
     {
         backButton.onClick.AddListener(() => param.onBack?.Invoke());
         PopulateLevels(param.onLevelSelected);
     }
 
-    private void PopulateLevels(Action<LevelConfig> onLevelSelected)
+    private void PopulateLevels(Action<LevelConfig, int> onLevelSelected)
     {
         for (int i = levelsContainer.childCount - 1; i >= 0; i--)
         {
@@ -39,6 +41,7 @@ public class UIStoryLevel : MonoBehaviour
         for (int i = 0; i < levels.Length; i++)
         {
             LevelConfig level = levels[i];
+            int index = i;
             bool unlocked = LevelSaveState.IsUnlocked(level, defaultUnlocked: i == 0);
             GameObject template = unlocked ? unlockedTemplate : lockedTemplate;
             GameObject entry = Instantiate(template, levelsContainer);
@@ -48,7 +51,7 @@ public class UIStoryLevel : MonoBehaviour
             button.interactable = unlocked;
             if (unlocked)
             {
-                button.onClick.AddListener(() => onLevelSelected?.Invoke(level));
+                button.onClick.AddListener(() => onLevelSelected?.Invoke(level, index));
             }
         }
     }

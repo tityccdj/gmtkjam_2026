@@ -40,16 +40,23 @@ public class Title : MonoBehaviour
         uiMode.Setup(new UIMode.Param
         {
             onStoryMode = () => uiMode.SlideOut(() => uiStoryLevel.SlideIn()),
-            onLocalVersus = () => Debug.Log("Local Versus selected"),
+            onLocalVersus = () =>
+            {
+                LevelSelection.PlayerVsPlayer = true;
+                SceneLoader.Instance.LoadScene("Procedural");
+            },
             onFreeplay = () => Debug.Log("Freeplay selected"),
             onBack = () => uiMode.SlideOut(() => uiMainMenu.gameObject.SetActive(true)),
         });
         uiStoryLevel.Setup(new UIStoryLevel.Param
         {
             onBack = () => uiStoryLevel.SlideOut(() => uiMode.SlideIn()),
-            onLevelSelected = level =>
+            onLevelSelected = (level, index) =>
             {
                 LevelSelection.Current = level;
+                LevelSelection.CurrentIndex = index;
+                LevelSelection.AllLevels = uiStoryLevel.Levels;
+                LevelSelection.PlayerVsPlayer = false;
                 SceneLoader.Instance.LoadScene("Procedural");
             },
         });
