@@ -107,6 +107,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [SerializeField] private UIBattleBoard battleBoard;
     [SerializeField] private UIFighterPanel playerPanel;
     [SerializeField] private UIFighterPanel enemyPanel;
+    [SerializeField] private UIRoundTextPanel roundTextPanel;
 
     private int rows;
     private int columns;
@@ -1020,6 +1021,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         boardBusy = true;
         RefreshSelectionFrames();
         bool playerOneWon = winner == player;
+        
+        if (roundTextPanel != null)
+        {
+            roundTextPanel.ShowRoundText(playerOneWon);
+        }
         hud.SetTurn(
             playerVsPlayer
                 ? (playerOneWon ? "PLAYER 1 WINS" : "PLAYER 2 WINS")

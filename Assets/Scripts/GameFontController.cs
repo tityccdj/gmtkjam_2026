@@ -5,7 +5,7 @@ using UnityEngine.SceneManagement;
 /// <summary>Applies the game's Yazo typeface to every TMP label in every scene.</summary>
 public static class GameFontController
 {
-    private const string SourceFontPath = "fonts/Yazo";
+    private const string SourceFontPath = "fonts/FreeCheeseR";
     private const string CountdownSourceFontPath = "fonts/FreeCheeseR";
     private static TMP_FontAsset gameFont;
     private static TMP_FontAsset countdownFont;
