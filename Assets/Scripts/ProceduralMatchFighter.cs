@@ -134,6 +134,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void Awake()
     {
+        if (LevelSelection.Current != null)
+        {
+            levelConfig = LevelSelection.Current;
+        }
+
         int boardSize = GetBoardSizeForDifficulty();
         rows = boardSize;
         columns = boardSize;
