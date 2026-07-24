@@ -108,6 +108,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [SerializeField] private UIFighterPanel playerPanel;
     [SerializeField] private UIFighterPanel enemyPanel;
     [SerializeField] private UIRoundTextPanel roundTextPanel;
+    [SerializeField] private UIBattleResultSlider battleResultSlider;
 
     private int rows;
     private int columns;
@@ -163,6 +164,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         battleBoard.ConfigureGrid(rows, columns);
         FillInitialBoard();
+        battleBoard.gameObject.SetActive(false);
         PrepareForInput();
     }
 
@@ -211,6 +213,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             if (AnyStartPressed())
             {
                 inputReady = true;
+                battleBoard.gameObject.SetActive(true);
                 BeginTurn(true);
             }
             return;
@@ -1030,6 +1033,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         if (roundTextPanel != null)
         {
             roundTextPanel.ShowRoundText(playerOneWon);
+        }
+        if (battleResultSlider != null)
+        {
+            battleResultSlider.ShowResult(playerOneWon);
         }
         hud.SetTurn(
             playerVsPlayer
