@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -14,6 +15,9 @@ using UnityEngine.InputSystem.UI;
 
 public sealed class ProceduralMatchFighter : MonoBehaviour
 {
+    private const string AntiStuckOverlayResource = "ui/AntiStuckOverlay";
+    private const int MaxShuffleAttempts = 256;
+
     public enum BattleGameMode
     {
         Story,
@@ -134,6 +138,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private int killScore;
     private int roundNumber = 1;
     private int enemyAttackBonus;
+    private bool reshuffling;
+    private GameObject antiStuckOverlay;
+    private TMP_Text antiStuckText;
+    private CanvasGroup antiStuckCanvasGroup;
+    private AudioClip shuffleSound;
 
     private bool IsHumanTurn => playerTurn || playerVsPlayer;
     private bool IsFreePlay => !playerVsPlayer && gameMode == BattleGameMode.FreePlay;
@@ -163,6 +172,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
 
         ResolveCharacterAnimations();
+        CreateAntiStuckOverlay();
         battleBoard.ConfigureGrid(rows, columns);
         FillInitialBoard();
         PrepareForInput();
@@ -304,7 +314,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         if (!inputReady)
         {
-            if (AnyStartPressed())
+            if (!boardBusy && AnyStartPressed())
             {
                 inputReady = true;
                 BeginTurn(true);
@@ -338,10 +348,14 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                         board[move.RowB, move.ColumnB],
                         false));
                 }
+                else if (!HasAvailableMove())
+                {
+                    StartCoroutine(AutoReshuffleBoard());
+                }
             }
         }
 
-        if (timeRemaining <= 0f)
+        if (!boardBusy && timeRemaining <= 0f)
         {
             StartCoroutine(EndTurn());
         }
@@ -493,6 +507,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 : $"STORY  |  {enemyDifficulty.ToString().ToUpper()}  |  BLUE = +1s NEXT TURN");
         MoveFocusTo(0, 0);
         UpdateHud();
+        if (!HasAvailableMove())
+        {
+            StartCoroutine(AutoReshuffleBoard());
+        }
     }
 
     private void HandleHumanNavigation(int humanIndex)
@@ -698,7 +716,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             matches = FindMatches();
         }
 
-        hud.SetMessage(combo > 1 ? $"CHAIN x{combo}!" : "MATCH!");
+        bool requiredReshuffle = !HasAvailableMove();
+        if (requiredReshuffle)
+        {
+            yield return AutoReshuffleBoard();
+        }
+        else
+        {
+            hud.SetMessage(combo > 1 ? $"CHAIN x{combo}!" : "MATCH!");
+        }
         boardBusy = false;
         RefreshSelectionFrames();
     }
@@ -1123,6 +1149,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 : "EVERY 10 SECONDS, DESTINY IS DECIDED.");
         UpdateTimer();
         UpdateHud();
+        if (!HasAvailableMove())
+        {
+            StartCoroutine(AutoReshuffleBoard());
+        }
     }
 
     private void EndBattle(Fighter winner)
@@ -1205,7 +1235,6 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         if (bestMoves.Count == 0)
         {
-            ShuffleBoard();
             return BoardMove.Invalid;
         }
         return bestMoves[UnityEngine.Random.Range(0, bestMoves.Count)];
@@ -1233,7 +1262,6 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         if (validMoves.Count == 0)
         {
-            ShuffleBoard();
             return BoardMove.Invalid;
         }
         return validMoves[UnityEngine.Random.Range(0, validMoves.Count)];
@@ -1310,18 +1338,297 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
     }
 
-    private void ShuffleBoard()
+    private bool HasAvailableMove()
     {
         for (int row = 0; row < rows; row++)
         {
             for (int column = 0; column < columns; column++)
             {
-                board[row, column].Type = (OrbType)UnityEngine.Random.Range(0, OrbColors.Length);
+                if (column + 1 < columns &&
+                    IsValidMove(row, column, row, column + 1))
+                {
+                    return true;
+                }
+                if (row + 1 < rows &&
+                    IsValidMove(row, column, row + 1, column))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private IEnumerator AutoReshuffleBoard()
+    {
+        if (reshuffling)
+        {
+            yield break;
+        }
+
+        reshuffling = true;
+        boardBusy = true;
+        selectedOrb = null;
+        battleBoard.HideSelection();
+        hud.SetMessage("NO MOVES! RESHUFFLING...");
+        ShowAntiStuckOverlay();
+        PlayShuffleSound();
+
+        yield return ScaleBoard(Vector3.one, Vector3.one * 0.12f, 0.14f);
+
+        bool shuffled = TryCreatePlayableShuffle();
+        if (!shuffled)
+        {
+            Debug.LogError("Anti-Stuck System could not create a playable board.", this);
+        }
+        RefreshAllOrbs();
+
+        yield return ScaleBoard(Vector3.one * 0.12f, Vector3.one, 0.24f);
+        yield return new WaitForSeconds(0.55f);
+
+        timeRemaining = turnDuration;
+        cpuMoveTimer = GetCpuInitialDelay();
+        UpdateTimer();
+        HideAntiStuckOverlay();
+        hud.SetMessage("BOARD READY! TIMER RESET.");
+        reshuffling = false;
+        boardBusy = false;
+        RefreshSelectionFrames();
+    }
+
+    private bool TryCreatePlayableShuffle()
+    {
+        List<OrbType> types = new List<OrbType>(rows * columns);
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                types.Add(board[row, column].Type);
+            }
+        }
+
+        for (int attempt = 0; attempt < MaxShuffleAttempts; attempt++)
+        {
+            ShuffleTypes(types);
+            ApplyTypes(types);
+            if (FindMatches().Count == 0 && HasAvailableMove())
+            {
+                return true;
+            }
+        }
+
+        for (int attempt = 0; attempt < MaxShuffleAttempts; attempt++)
+        {
+            GenerateBoardWithoutStartingMatches();
+            if (HasAvailableMove())
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void ShuffleTypes(List<OrbType> types)
+    {
+        for (int index = types.Count - 1; index > 0; index--)
+        {
+            int swapIndex = UnityEngine.Random.Range(0, index + 1);
+            (types[index], types[swapIndex]) = (types[swapIndex], types[index]);
+        }
+    }
+
+    private void ApplyTypes(List<OrbType> types)
+    {
+        int index = 0;
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                board[row, column].Type = types[index++];
+            }
+        }
+    }
+
+    private void GenerateBoardWithoutStartingMatches()
+    {
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                OrbType type;
+                do
+                {
+                    type = (OrbType)UnityEngine.Random.Range(0, OrbColors.Length);
+                }
+                while (WouldCreateStartingMatch(row, column, type));
+                board[row, column].Type = type;
+            }
+        }
+    }
+
+    private void RefreshAllOrbs()
+    {
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
                 board[row, column].Rect.localScale = Vector3.one;
                 RefreshOrb(board[row, column]);
             }
         }
-        hud.SetMessage("No moves - board reshuffled!");
+    }
+
+    private IEnumerator ScaleBoard(Vector3 from, Vector3 to, float duration)
+    {
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float progress = Mathf.Clamp01(elapsed / duration);
+            Vector3 scale = Vector3.Lerp(from, to, progress);
+            for (int row = 0; row < rows; row++)
+            {
+                for (int column = 0; column < columns; column++)
+                {
+                    board[row, column].Rect.localScale = scale;
+                }
+            }
+            yield return null;
+        }
+
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                board[row, column].Rect.localScale = to;
+            }
+        }
+    }
+
+    private void CreateAntiStuckOverlay()
+    {
+        GameObject overlayPrefab = Resources.Load<GameObject>(AntiStuckOverlayResource);
+        if (overlayPrefab == null)
+        {
+            Debug.LogWarning(
+                $"Missing Resources/{AntiStuckOverlayResource}.prefab.",
+                this);
+            return;
+        }
+
+        Canvas canvas = hud.GetComponentInParent<Canvas>();
+        Transform parent = canvas != null ? canvas.transform : hud.transform;
+        antiStuckOverlay = Instantiate(overlayPrefab, parent, false);
+        antiStuckOverlay.name = "AntiStuckOverlay";
+        antiStuckOverlay.transform.SetAsLastSibling();
+
+        RectTransform panelRect = antiStuckOverlay.GetComponent<RectTransform>();
+        panelRect.anchorMin = Vector2.one * 0.5f;
+        panelRect.anchorMax = Vector2.one * 0.5f;
+        panelRect.pivot = Vector2.one * 0.5f;
+        panelRect.anchoredPosition = Vector2.zero;
+        panelRect.sizeDelta = new Vector2(780f, 150f);
+
+        GameObject textObject = new GameObject(
+            "Message",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI));
+        textObject.layer = antiStuckOverlay.layer;
+        textObject.transform.SetParent(antiStuckOverlay.transform, false);
+
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(28f, 12f);
+        textRect.offsetMax = new Vector2(-28f, -12f);
+
+        antiStuckText = textObject.GetComponent<TextMeshProUGUI>();
+        antiStuckText.text = "NO MOVES! RESHUFFLING...";
+        antiStuckText.alignment = TextAlignmentOptions.Center;
+        antiStuckText.fontStyle = FontStyles.Bold;
+        antiStuckText.fontSize = 46f;
+        antiStuckText.enableAutoSizing = true;
+        antiStuckText.fontSizeMin = 24f;
+        antiStuckText.fontSizeMax = 52f;
+        antiStuckText.color = new Color(1f, 0.88f, 0.35f);
+        antiStuckText.raycastTarget = false;
+        if (GameFontController.Font != null)
+        {
+            antiStuckText.font = GameFontController.Font;
+        }
+
+        antiStuckCanvasGroup = antiStuckOverlay.AddComponent<CanvasGroup>();
+        antiStuckCanvasGroup.blocksRaycasts = false;
+        antiStuckCanvasGroup.interactable = false;
+        antiStuckOverlay.SetActive(false);
+    }
+
+    private void ShowAntiStuckOverlay()
+    {
+        if (antiStuckOverlay == null)
+        {
+            return;
+        }
+
+        antiStuckOverlay.transform.SetAsLastSibling();
+        antiStuckOverlay.transform.localScale = Vector3.one * 0.85f;
+        antiStuckCanvasGroup.alpha = 0f;
+        antiStuckOverlay.SetActive(true);
+        LeanTween.cancel(antiStuckOverlay);
+        LeanTween.alphaCanvas(antiStuckCanvasGroup, 1f, 0.12f);
+        LeanTween.scale(antiStuckOverlay, Vector3.one, 0.18f)
+            .setEaseOutBack();
+    }
+
+    private void HideAntiStuckOverlay()
+    {
+        if (antiStuckOverlay == null)
+        {
+            return;
+        }
+
+        LeanTween.cancel(antiStuckOverlay);
+        antiStuckOverlay.SetActive(false);
+    }
+
+    private void PlayShuffleSound()
+    {
+        shuffleSound ??= CreateShuffleSound();
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFXOneShot(shuffleSound, 0.8f);
+        }
+    }
+
+    private static AudioClip CreateShuffleSound()
+    {
+        const int sampleRate = 22050;
+        const float duration = 0.34f;
+        int sampleCount = Mathf.CeilToInt(sampleRate * duration);
+        float[] samples = new float[sampleCount];
+
+        for (int index = 0; index < sampleCount; index++)
+        {
+            float time = index / (float)sampleRate;
+            float progress = time / duration;
+            float envelope = Mathf.Pow(1f - progress, 1.8f);
+            float sweep = Mathf.Sin(
+                2f * Mathf.PI * (160f * time + 920f * time * time));
+            float noise = Mathf.PerlinNoise(index * 0.071f, 0.37f) * 2f - 1f;
+            float tick = Mathf.Sin(2f * Mathf.PI * 42f * time) > 0.78f ? 1f : 0.2f;
+            samples[index] = (sweep * 0.52f + noise * 0.22f) * envelope * tick;
+        }
+
+        AudioClip clip = AudioClip.Create(
+            "AntiStuckShuffle",
+            sampleCount,
+            1,
+            sampleRate,
+            false);
+        clip.SetData(samples, 0);
+        return clip;
     }
 
     private void UpdateTimer()

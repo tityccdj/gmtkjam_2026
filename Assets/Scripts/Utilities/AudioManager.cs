@@ -238,6 +238,18 @@ public class AudioManager : Singleton<AudioManager>
         }
     }
 
+    public void PlaySFXOneShot(AudioClip clip, float volumeMultiplier = 1f)
+    {
+        if (clip == null)
+        {
+            return;
+        }
+
+        sfxSource.PlayOneShot(
+            clip,
+            sfxVolume * masterVolume * Mathf.Clamp01(volumeMultiplier));
+    }
+
     public void PlayLoop(string soundName, string channelKey)
     {
         if (string.IsNullOrWhiteSpace(channelKey))
