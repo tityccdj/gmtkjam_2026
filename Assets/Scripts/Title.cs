@@ -8,6 +8,8 @@ public class Title : MonoBehaviour
     private UISetting uiSetting;
     [SerializeField]
     private UITutorial uiTutorial;
+    [SerializeField]
+    private UIMode uiMode;
 
     void Start()
     {
@@ -15,7 +17,11 @@ public class Title : MonoBehaviour
 
         uiMainMenu.Setup(new UIMainMenu.Param
         {
-            onPlay = () => SceneLoader.Instance.LoadScene("Level"),
+            onPlay = () =>
+            {
+                uiMainMenu.gameObject.SetActive(false);
+                uiMode.SlideIn();
+            },
             onSetting = () =>
             {
                 uiMainMenu.gameObject.SetActive(false);
@@ -28,6 +34,13 @@ public class Title : MonoBehaviour
             },
             onExit = () => Application.Quit(),
             version = Application.version,
+        });
+        uiMode.Setup(new UIMode.Param
+        {
+            onStoryMode = () => Debug.Log("Story Mode selected"),
+            onLocalVersus = () => Debug.Log("Local Versus selected"),
+            onFreeplay = () => Debug.Log("Freeplay selected"),
+            onBack = () => uiMode.SlideOut(() => uiMainMenu.gameObject.SetActive(true)),
         });
         uiSetting.Setup(new UISetting.Param
         {
@@ -54,5 +67,6 @@ public class Title : MonoBehaviour
         uiMainMenu.gameObject.SetActive(true);
         uiSetting.gameObject.SetActive(false);
         uiTutorial.gameObject.SetActive(false);
+        uiMode.gameObject.SetActive(false);
     }
 }
