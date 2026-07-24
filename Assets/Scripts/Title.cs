@@ -10,6 +10,8 @@ public class Title : MonoBehaviour
     private UITutorial uiTutorial;
     [SerializeField]
     private UIMode uiMode;
+    [SerializeField]
+    private UIStoryLevel uiStoryLevel;
 
     void Start()
     {
@@ -37,10 +39,19 @@ public class Title : MonoBehaviour
         });
         uiMode.Setup(new UIMode.Param
         {
-            onStoryMode = () => Debug.Log("Story Mode selected"),
+            onStoryMode = () => uiMode.SlideOut(() => uiStoryLevel.SlideIn()),
             onLocalVersus = () => Debug.Log("Local Versus selected"),
             onFreeplay = () => Debug.Log("Freeplay selected"),
             onBack = () => uiMode.SlideOut(() => uiMainMenu.gameObject.SetActive(true)),
+        });
+        uiStoryLevel.Setup(new UIStoryLevel.Param
+        {
+            onBack = () => uiStoryLevel.SlideOut(() => uiMode.SlideIn()),
+            onLevelSelected = level =>
+            {
+                LevelSelection.Current = level;
+                SceneLoader.Instance.LoadScene("Procedural");
+            },
         });
         uiSetting.Setup(new UISetting.Param
         {
@@ -68,5 +79,6 @@ public class Title : MonoBehaviour
         uiSetting.gameObject.SetActive(false);
         uiTutorial.gameObject.SetActive(false);
         uiMode.gameObject.SetActive(false);
+        uiStoryLevel.gameObject.SetActive(false);
     }
 }
