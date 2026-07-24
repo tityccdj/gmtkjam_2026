@@ -109,6 +109,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [SerializeField] private UIFighterPanel enemyPanel;
     [SerializeField] private UIRoundTextPanel roundTextPanel;
     [SerializeField] private UIBattleResultSlider battleResultSlider;
+    [SerializeField] private FighterAnimator playerAnimator;
+    [SerializeField] private FighterAnimator enemyAnimator;
 
     private int rows;
     private int columns;
@@ -829,6 +831,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         UpdateHud();
 
         hud.SetMessage(BuildResolutionMessage(acting, damage, blocked, heal, shieldGain, timeBonus, specialBursts));
+        
+        if (playerTurn && playerAnimator != null) playerAnimator.TriggerAttack();
+        if (!playerTurn && enemyAnimator != null) enemyAnimator.TriggerAttack();
+
         if (damage > 0)
         {
             UIFighterPanel hitPanel = target == player ? playerPanel : enemyPanel;
@@ -903,6 +909,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             case 0:
             {
+                if (enemyAnimator != null) enemyAnimator.TriggerAttack();
                 int attack = power + enemyAttackBonus;
                 int blocked = Mathf.Min(
                     player.Shield,
@@ -945,6 +952,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 cpu.Special += specialGain;
                 if (cpu.Special >= levelConfig.specialBurstThreshold)
                 {
+                    if (enemyAnimator != null) enemyAnimator.TriggerAttack();
                     cpu.Special -= levelConfig.specialBurstThreshold;
                     int damage = power + levelConfig.specialBurstAttackBonus + enemyAttackBonus;
                     player.Health = Mathf.Max(0, player.Health - damage);

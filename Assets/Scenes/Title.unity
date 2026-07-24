@@ -3359,7 +3359,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed49c407d55c247679bb1f70917e1b2e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gameScene: Procedural
+  gameScene: Game
   uiMainMenu: {fileID: 53928693}
   uiSetting: {fileID: 36754629}
   uiTutorial: {fileID: 1849529994}
