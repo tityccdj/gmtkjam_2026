@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -108,6 +109,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [SerializeField] private UIFighterPanel playerPanel;
     [SerializeField] private UIFighterPanel enemyPanel;
 
+    [Header("Characters")]
+    [FormerlySerializedAs("playerCharacter")]
+    [SerializeField] private CharacterAnim leftCharacter;
+    [FormerlySerializedAs("enemyCharacter")]
+    [SerializeField] private CharacterAnim rightCharacter;
+
     private int rows;
     private int columns;
     private float turnDuration;
@@ -155,9 +162,104 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             circleSprite = sprites[0];
         }
 
+        ResolveCharacterAnimations();
         battleBoard.ConfigureGrid(rows, columns);
         FillInitialBoard();
         PrepareForInput();
+    }
+
+    private void ResolveCharacterAnimations()
+    {
+        CharacterAnim[] characters = FindObjectsByType<CharacterAnim>();
+        Array.Sort(characters, (left, right) =>
+            left.transform.position.x.CompareTo(right.transform.position.x));
+        AssignCharactersBySide(characters);
+
+        if (leftCharacter != null && rightCharacter != null)
+        {
+            return;
+        }
+
+        Animator[] animators = FindObjectsByType<Animator>();
+        Array.Sort(animators, (left, right) =>
+            left.transform.position.x.CompareTo(right.transform.position.x));
+
+        if (leftCharacter == null)
+        {
+            Animator leftAnimator = FindAnimatorForSide(animators, true);
+            if (leftAnimator != null)
+            {
+                leftCharacter = GetOrAddCharacterAnim(leftAnimator);
+            }
+        }
+        if (rightCharacter == null)
+        {
+            Animator rightAnimator = FindAnimatorForSide(animators, false);
+            if (rightAnimator != null)
+            {
+                rightCharacter = GetOrAddCharacterAnim(rightAnimator);
+            }
+        }
+    }
+
+    private void AssignCharactersBySide(CharacterAnim[] characters)
+    {
+        if (characters.Length == 0)
+        {
+            return;
+        }
+
+        if (characters.Length == 1)
+        {
+            if (characters[0].transform.position.x <= 0f)
+            {
+                leftCharacter ??= characters[0];
+            }
+            else
+            {
+                rightCharacter ??= characters[0];
+            }
+            return;
+        }
+
+        leftCharacter ??= characters[0];
+        rightCharacter ??= characters[characters.Length - 1];
+    }
+
+    private Animator FindAnimatorForSide(Animator[] animators, bool findLeft)
+    {
+        int start = findLeft ? 0 : animators.Length - 1;
+        int end = findLeft ? animators.Length : -1;
+        int step = findLeft ? 1 : -1;
+
+        for (int index = start; index != end; index += step)
+        {
+            Animator animator = animators[index];
+            CharacterAnim character = animator.GetComponent<CharacterAnim>();
+            if (character == leftCharacter || character == rightCharacter)
+            {
+                continue;
+            }
+
+            if (animators.Length == 1)
+            {
+                bool isOnLeft = animator.transform.position.x <= 0f;
+                if (isOnLeft != findLeft)
+                {
+                    continue;
+                }
+            }
+
+            return animator;
+        }
+
+        return null;
+    }
+
+    private static CharacterAnim GetOrAddCharacterAnim(Animator targetAnimator)
+    {
+        CharacterAnim character = targetAnimator.GetComponent<CharacterAnim>();
+        return character != null ? character : targetAnimator.gameObject.AddComponent<CharacterAnim>();
     }
 
     private int GetBoardSizeForDifficulty()
@@ -687,6 +789,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void QueueMatches(HashSet<OrbView> matches, Fighter owner, int chain)
     {
+        PlayScoreAnimation(owner);
+
         foreach (OrbView orb in matches)
         {
             if (orb.Type == OrbType.Blue)
@@ -700,6 +804,13 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             }
         }
         UpdateHud();
+    }
+
+    private void PlayScoreAnimation(Fighter scoringFighter)
+    {
+        CharacterAnim scoringCharacter =
+            scoringFighter == player ? leftCharacter : rightCharacter;
+        scoringCharacter?.PlayAttack();
     }
 
     private IEnumerator DestroyMatches(HashSet<OrbView> matches)
