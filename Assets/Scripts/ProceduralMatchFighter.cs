@@ -143,6 +143,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             playerVsPlayer = LevelSelection.PlayerVsPlayer.Value;
         }
+        if (LevelSelection.GameMode.HasValue)
+        {
+            gameMode = LevelSelection.GameMode.Value;
+        }
 
         int boardSize = GetBoardSizeForDifficulty();
         rows = boardSize;

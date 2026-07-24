@@ -3,6 +3,8 @@ using UnityEngine;
 public class Title : MonoBehaviour
 {
     [SerializeField]
+    private string gameScene;
+    [SerializeField]
     private UIMainMenu uiMainMenu;
     [SerializeField]
     private UISetting uiSetting;
@@ -43,9 +45,15 @@ public class Title : MonoBehaviour
             onLocalVersus = () =>
             {
                 LevelSelection.PlayerVsPlayer = true;
-                SceneLoader.Instance.LoadScene("Procedural");
+                LevelSelection.GameMode = ProceduralMatchFighter.BattleGameMode.Story;
+                SceneLoader.Instance.LoadScene(gameScene);
             },
-            onFreeplay = () => Debug.Log("Freeplay selected"),
+            onFreeplay = () =>
+            {
+                LevelSelection.PlayerVsPlayer = false;
+                LevelSelection.GameMode = ProceduralMatchFighter.BattleGameMode.FreePlay;
+                SceneLoader.Instance.LoadScene(gameScene);
+            },
             onBack = () => uiMode.SlideOut(() => uiMainMenu.gameObject.SetActive(true)),
         });
         uiStoryLevel.Setup(new UIStoryLevel.Param
@@ -57,7 +65,8 @@ public class Title : MonoBehaviour
                 LevelSelection.CurrentIndex = index;
                 LevelSelection.AllLevels = uiStoryLevel.Levels;
                 LevelSelection.PlayerVsPlayer = false;
-                SceneLoader.Instance.LoadScene("Procedural");
+                LevelSelection.GameMode = ProceduralMatchFighter.BattleGameMode.Story;
+                SceneLoader.Instance.LoadScene(gameScene);
             },
         });
         uiSetting.Setup(new UISetting.Param

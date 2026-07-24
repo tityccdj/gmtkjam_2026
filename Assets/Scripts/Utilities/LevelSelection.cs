@@ -4,6 +4,7 @@ public static class LevelSelection
 {
     public static LevelConfig Current;
     public static bool? PlayerVsPlayer;
+    public static ProceduralMatchFighter.BattleGameMode? GameMode;
 
     // The full story level list and the chosen level's index within it,
     // so Procedural can unlock whatever comes next on a win.
