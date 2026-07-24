@@ -63,6 +63,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         public Button Button;
         public int Row;
         public int Column;
+        public int LockedPlayerTurns;
     }
 
     private readonly struct BoardMove
@@ -104,6 +105,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [SerializeField] private bool playerVsPlayer = false;
     [SerializeField] private EnemyDifficulty enemyDifficulty = EnemyDifficulty.Normal;
 
+    [Header("Boss")]
+    [SerializeField] private bool isBoss;
+    [Range(1, 5)]
+    [SerializeField] private int bossID = 5;
+    [SerializeField] private BossController bossController;
+
     [Header("Level")]
     [SerializeField] private LevelConfig levelConfig;
 
@@ -138,6 +145,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private int killScore;
     private int roundNumber = 1;
     private int enemyAttackBonus;
+    private int bossHealthCap;
     private bool reshuffling;
     private GameObject antiStuckOverlay;
     private TMP_Text antiStuckText;
@@ -157,8 +165,13 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         board = new OrbView[rows, columns];
 
         player.Health = levelConfig.healthCap;
-        cpu.Health = levelConfig.healthCap;
-        cpu.Name = IsFreePlay ? "ENEMY #1" : levelConfig.enemyName;
+        SetupBossController();
+        cpu.Health = bossHealthCap;
+        cpu.Name = IsFreePlay
+            ? "ENEMY #1"
+            : bossController != null && bossController.IsActive
+                ? bossController.DisplayName
+                : levelConfig.enemyName;
         if (playerVsPlayer)
         {
             player.Name = "PLAYER 1";
@@ -176,6 +189,30 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         battleBoard.ConfigureGrid(rows, columns);
         FillInitialBoard();
         PrepareForInput();
+    }
+
+    private void SetupBossController()
+    {
+        bossHealthCap = levelConfig.healthCap;
+        if (!isBoss || playerVsPlayer)
+        {
+            return;
+        }
+
+        if (bossController == null)
+        {
+            bossController = GetComponent<BossController>();
+        }
+        if (bossController == null)
+        {
+            bossController = gameObject.AddComponent<BossController>();
+        }
+
+        bossController.Setup(new BossController.Param(
+            bossID,
+            levelConfig.healthCap,
+            levelConfig.turnDuration));
+        bossHealthCap = bossController.BossHealthCap;
     }
 
     private void ResolveCharacterAnimations()
@@ -370,7 +407,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 OrbType type;
                 do
                 {
-                    type = (OrbType)UnityEngine.Random.Range(0, OrbColors.Length);
+                    type = GetRandomOrbType();
                 }
                 while (WouldCreateStartingMatch(row, column, type));
 
@@ -459,6 +496,16 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
 
         OrbView orb = board[cursorRow, cursorColumn];
+        if (orb.LockedPlayerTurns > 0)
+        {
+            selectedOrb = null;
+            RefreshSelectionFrames();
+            hud.SetMessage(
+                $"BLOCK FROZEN FOR {orb.LockedPlayerTurns} TURN(S)! " +
+                "MATCH IT WITH A CASCADE TO UNLOCK.");
+            return;
+        }
+
         if (selectedOrb == null)
         {
             selectedOrb = orb;
@@ -817,10 +864,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         PlayScoreAnimation(owner);
 
+        int blueBlockCount = 0;
         foreach (OrbView orb in matches)
         {
             if (orb.Type == OrbType.Blue)
             {
+                blueBlockCount++;
                 owner.Pending[(int)OrbType.Blue] += 1;
                 owner.StoredTime += Mathf.RoundToInt(levelConfig.timePerBlueOrb);
             }
@@ -828,6 +877,14 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             {
                 owner.Pending[(int)orb.Type] += chain;
             }
+
+            // Cascades may clear frozen cells even though the player cannot swap them.
+            orb.LockedPlayerTurns = 0;
+        }
+
+        if (owner == player && bossController != null && bossController.IsActive)
+        {
+            bossController.RecordPlayerMatch(blueBlockCount);
         }
         UpdateHud();
     }
@@ -901,7 +958,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                     continue;
                 }
 
-                orb.Type = (OrbType)UnityEngine.Random.Range(0, OrbColors.Length);
+                orb.Type = GetRandomOrbType();
                 orb.Rect.localScale = Vector3.one;
                 RefreshOrb(orb);
             }
@@ -928,7 +985,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         int shieldGain = acting.Pending[(int)OrbType.Yellow] * levelConfig.shieldPerOrb;
         int specialGain = acting.Pending[(int)OrbType.Purple] * levelConfig.specialPerOrb;
 
-        acting.Health = Mathf.Min(levelConfig.healthCap, acting.Health + heal);
+        int actingHealthCap = acting == cpu ? bossHealthCap : levelConfig.healthCap;
+        acting.Health = Mathf.Min(actingHealthCap, acting.Health + heal);
         acting.Shield = Mathf.Min(levelConfig.shieldCap, acting.Shield + shieldGain);
         acting.Special += specialGain;
 
@@ -939,9 +997,20 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             acting.Special %= levelConfig.specialBurstThreshold;
         }
 
-        int maxBlockedThisHit = Mathf.FloorToInt(attack * levelConfig.shieldBlockRatio);
+        bool ignoreShield = false;
+        if (acting == cpu && bossController != null && bossController.IsActive)
+        {
+            attack = bossController.ModifyBossAttack(attack, out ignoreShield);
+        }
+
+        int maxBlockedThisHit = ignoreShield
+            ? 0
+            : Mathf.FloorToInt(attack * levelConfig.shieldBlockRatio);
         int blocked = Mathf.Min(target.Shield, maxBlockedThisHit);
-        target.Shield -= blocked;
+        if (!ignoreShield)
+        {
+            target.Shield -= blocked;
+        }
         int damage = attack - blocked;
         target.Health = Mathf.Max(0, target.Health - damage);
 
@@ -984,6 +1053,31 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             EndBattle(acting);
             yield break;
+        }
+
+        if (acting == player && bossController != null && bossController.IsActive)
+        {
+            TickFrozenBlocks();
+            BossController.TurnResult bossResult = bossController.CompletePlayerTurn();
+            if (bossResult.FreezeBlockCount > 0)
+            {
+                LockRandomBlocks(
+                    bossResult.FreezeBlockCount,
+                    bossResult.FreezeDuration);
+            }
+
+            if (bossResult.Triggered)
+            {
+                hud.SetMessage(bossResult.Message);
+                UpdateHud();
+                yield return new WaitForSeconds(0.8f);
+            }
+
+            if (bossResult.TriggerBadEnd)
+            {
+                EndBattle(cpu, "DOOMSDAY CORE DETONATED! BAD END");
+                yield break;
+            }
         }
 
         boardBusy = false;
@@ -1041,7 +1135,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             case 1:
             {
                 int heal = Mathf.RoundToInt(power * 1.5f);
-                cpu.Health = Mathf.Min(levelConfig.healthCap, cpu.Health + heal);
+                cpu.Health = Mathf.Min(bossHealthCap, cpu.Health + heal);
                 hud.SetMessage($"ENEMY HEAL: +{heal} HP");
                 UpdateHud();
                 yield return enemyPanel.Flash(new Color(0.20f, 1f, 0.42f));
@@ -1090,7 +1184,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         killScore++;
         enemyAttackBonus += 2;
         cpu.Name = $"ENEMY #{killScore + 1}";
-        cpu.Health = levelConfig.healthCap;
+        cpu.Health = bossHealthCap;
         cpu.Shield = 0;
         cpu.Special = 0;
         cpu.StoredTime = 0;
@@ -1105,7 +1199,13 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         Fighter activeFighter = isPlayer ? player : cpu;
         int storedTime = activeFighter.StoredTime;
         activeFighter.StoredTime = 0;
-        timeRemaining = turnDuration + storedTime;
+        float activeTurnDuration = turnDuration;
+        if (isPlayer && bossController != null && bossController.IsActive)
+        {
+            bossController.OnPlayerTurnStarted();
+            activeTurnDuration = bossController.ConsumePlayerTurnDuration();
+        }
+        timeRemaining = activeTurnDuration + storedTime;
         cpuMoveTimer = GetCpuInitialDelay();
         combo = 0;
         selectedOrb = null;
@@ -1141,12 +1241,17 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 : playerVsPlayer
                     ? "Player 2: build your queue before time runs out."
                     : "CPU is planning...");
-        hud.SetHook(
+        string hook =
             IsFreePlay
                 ? $"KILLS {killScore}  |  ENEMY BONUS ATK +{enemyAttackBonus}"
                 : isPlayer
                 ? "RACE AGAINST TIME. MATCH WISELY. SURVIVE THE COUNTDOWN."
-                : "EVERY 10 SECONDS, DESTINY IS DECIDED.");
+                : "EVERY 10 SECONDS, DESTINY IS DECIDED.";
+        if (bossController != null && bossController.IsActive)
+        {
+            hook += $"  |  {bossController.GetStatusText()}";
+        }
+        hud.SetHook(hook);
         UpdateTimer();
         UpdateHud();
         if (!HasAvailableMove())
@@ -1155,7 +1260,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
     }
 
-    private void EndBattle(Fighter winner)
+    private void EndBattle(Fighter winner, string overrideMessage = null)
     {
         battleEnded = true;
         boardBusy = true;
@@ -1170,7 +1275,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 : new Color(1f, 0.27f, 0.30f));
         hud.SetTimer("0", Color.white, false);
         hud.SetMessage(
-            IsFreePlay
+            !string.IsNullOrEmpty(overrideMessage)
+                ? overrideMessage
+                : IsFreePlay
                 ? $"SURVIVED {killScore} KILLS"
                 : playerVsPlayer
                 ? $"{winner.Name} decided destiny."
@@ -1271,10 +1378,59 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         OrbView first = board[rowA, columnA];
         OrbView second = board[rowB, columnB];
+        if (playerTurn &&
+            (first.LockedPlayerTurns > 0 || second.LockedPlayerTurns > 0))
+        {
+            return false;
+        }
+
         SwapTypes(first, second);
         bool valid = FindMatches().Count > 0;
         SwapTypes(first, second);
         return valid;
+    }
+
+    private void TickFrozenBlocks()
+    {
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                OrbView orb = board[row, column];
+                if (orb.LockedPlayerTurns <= 0)
+                {
+                    continue;
+                }
+
+                orb.LockedPlayerTurns--;
+                RefreshOrb(orb);
+            }
+        }
+    }
+
+    private void LockRandomBlocks(int count, int duration)
+    {
+        List<OrbView> candidates = new List<OrbView>();
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                if (board[row, column].LockedPlayerTurns <= 0)
+                {
+                    candidates.Add(board[row, column]);
+                }
+            }
+        }
+
+        int lockCount = Mathf.Min(Mathf.Max(0, count), candidates.Count);
+        for (int i = 0; i < lockCount; i++)
+        {
+            int index = UnityEngine.Random.Range(0, candidates.Count);
+            OrbView orb = candidates[index];
+            candidates.RemoveAt(index);
+            orb.LockedPlayerTurns = Mathf.Max(1, duration);
+            RefreshOrb(orb);
+        }
     }
 
     private void ScoreCpuMove(
@@ -1459,12 +1615,37 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 OrbType type;
                 do
                 {
-                    type = (OrbType)UnityEngine.Random.Range(0, OrbColors.Length);
+                    type = GetRandomOrbType();
                 }
                 while (WouldCreateStartingMatch(row, column, type));
                 board[row, column].Type = type;
             }
         }
+    }
+
+    private OrbType GetRandomOrbType()
+    {
+        float totalWeight = 0f;
+        for (int index = 0; index < OrbColors.Length; index++)
+        {
+            totalWeight += bossController != null && bossController.IsActive
+                ? bossController.GetDropWeight(index, playerTurn)
+                : 1f;
+        }
+
+        float roll = UnityEngine.Random.value * totalWeight;
+        for (int index = 0; index < OrbColors.Length; index++)
+        {
+            roll -= bossController != null && bossController.IsActive
+                ? bossController.GetDropWeight(index, playerTurn)
+                : 1f;
+            if (roll <= 0f)
+            {
+                return (OrbType)index;
+            }
+        }
+
+        return OrbType.Purple;
     }
 
     private void RefreshAllOrbs()
@@ -1650,13 +1831,16 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             $"SH {player.Shield}   SP {player.Special}/{levelConfig.specialBurstThreshold}" +
             (IsFreePlay ? $"   KILLS {killScore}" : ""));
         enemyPanel.SetStats(
-            $"HP {cpu.Health}/{levelConfig.healthCap}   NEXT +{cpu.StoredTime}s\n" +
+            $"HP {cpu.Health}/{bossHealthCap}   NEXT +{cpu.StoredTime}s\n" +
             $"SH {cpu.Shield}   SP {cpu.Special}/{levelConfig.specialBurstThreshold}" +
             (IsFreePlay
                 ? $"   ATK +{enemyAttackBonus}"
-                : $"   {enemyDifficulty.ToString().ToUpper()}"));
+                : $"   {enemyDifficulty.ToString().ToUpper()}") +
+            (bossController != null && bossController.IsActive
+                ? $"\n{bossController.GetStatusText()}"
+                : ""));
         playerPanel.SetHealth((float)player.Health / levelConfig.healthCap);
-        enemyPanel.SetHealth((float)cpu.Health / levelConfig.healthCap);
+        enemyPanel.SetHealth((float)cpu.Health / bossHealthCap);
 
         for (int i = 0; i < ShortNames.Length; i++)
         {
@@ -1699,7 +1883,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private static void RefreshOrb(OrbView orb)
     {
-        orb.Image.color = OrbColors[(int)orb.Type];
+        Color color = OrbColors[(int)orb.Type];
+        if (orb.LockedPlayerTurns > 0)
+        {
+            color = Color.Lerp(color, new Color(0.72f, 0.94f, 1f), 0.62f);
+        }
+        orb.Image.color = color;
         orb.Rect.localScale = Vector3.one;
     }
 }
