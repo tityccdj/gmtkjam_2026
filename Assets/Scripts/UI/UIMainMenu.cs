@@ -15,6 +15,8 @@ public class UIMainMenu : MonoBehaviour
     }
 
     [SerializeField]
+    private SlidePanel slidePanel;
+    [SerializeField]
     private Button playButton;
     [SerializeField]
     private Button settingButton;
@@ -30,4 +32,8 @@ public class UIMainMenu : MonoBehaviour
         tutorialButton.onClick.AddListener(() => param.onTutorial?.Invoke());
         versionText.text = $"V {param.version}";
     }
+
+    public void SlideIn() => slidePanel.SlideIn();
+
+    public void SlideOut(Action onComplete = null) => slidePanel.SlideOut(onComplete);
 }

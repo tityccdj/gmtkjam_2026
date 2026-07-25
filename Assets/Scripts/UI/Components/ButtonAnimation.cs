@@ -18,7 +18,11 @@ public class ButtonAnimation : MonoBehaviour, IPointerEnterHandler, IPointerExit
     private Vector3 originalScale;
     private bool isPressed = false;
 
-    void Start()
+    // Captured in Awake, not Start: buttons spawned from a template can be
+    // deactivated before their first frame (see UICharacterSelect / UIStoryLevel
+    // populating while Title.Start hides the panel), and OnDisable writes this
+    // value straight back into the scale.
+    void Awake()
     {
         originalScale = transform.localScale;
     }

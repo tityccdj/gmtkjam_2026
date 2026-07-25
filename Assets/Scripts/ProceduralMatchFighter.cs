@@ -114,8 +114,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [SerializeField] private FighterAnimator enemyAnimator;
 
     [Header("Characters")]
-    // Parent the level's enemy character is spawned under. Falls back to the
-    // parent of the character already wired into enemyAnimator.
+    // Parents the selected characters are spawned under. Each falls back to the
+    // parent of the character already wired into playerAnimator / enemyAnimator.
+    [SerializeField] private Transform playerCharacterAnchor;
     [SerializeField] private Transform enemyCharacterAnchor;
 
     private int rows;
@@ -157,7 +158,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             gameMode = LevelSelection.GameMode.Value;
         }
 
-        ApplyEnemyCharacter();
+        ApplyCharacters();
 
         int boardSize = GetBoardSizeForDifficulty();
         rows = boardSize;
@@ -188,29 +189,52 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         PrepareForInput();
     }
 
-    // Swaps the scene-placed opponent for the one the level config asks for.
-    // The placeholder acts as the placement anchor so level prefabs don't have
-    // to know anything about the arena layout - author them facing right like
-    // the player character and the mirroring comes from the placeholder.
-    private void ApplyEnemyCharacter()
+    // Swaps the characters placed in the scene for the ones that were picked.
+    // The player side comes from the Title character selection; the enemy side
+    // is either the auto-picked opponent (versus / free play) or whatever the
+    // story level asks for.
+    private void ApplyCharacters()
     {
-        GameObject prefab = levelConfig != null ? levelConfig.enemyCharacterPrefab : null;
+        playerAnimator = SpawnCharacter(
+            LevelSelection.PlayerCharacter != null ? LevelSelection.PlayerCharacter.characterPrefab : null,
+            playerCharacterAnchor,
+            playerAnimator);
+
+        GameObject enemyPrefab = LevelSelection.OpponentCharacter != null
+            ? LevelSelection.OpponentCharacter.characterPrefab
+            : null;
+        if (enemyPrefab == null && levelConfig != null)
+        {
+            enemyPrefab = levelConfig.enemyCharacterPrefab;
+        }
+        enemyAnimator = SpawnCharacter(enemyPrefab, enemyCharacterAnchor, enemyAnimator);
+    }
+
+    // The character already placed in the scene doubles as the placement anchor,
+    // so character prefabs don't have to know anything about the arena layout -
+    // author them facing right like the player side and the mirroring comes from
+    // the placeholder. Returns the animator the battle should drive.
+    private FighterAnimator SpawnCharacter(
+        GameObject prefab,
+        Transform anchorOverride,
+        FighterAnimator placeholderAnimator)
+    {
         if (prefab == null)
         {
-            return;
+            return placeholderAnimator;
         }
 
-        Transform placeholder = enemyAnimator != null ? enemyAnimator.transform : null;
-        Transform anchor = enemyCharacterAnchor != null
-            ? enemyCharacterAnchor
+        Transform placeholder = placeholderAnimator != null ? placeholderAnimator.transform : null;
+        Transform anchor = anchorOverride != null
+            ? anchorOverride
             : placeholder != null ? placeholder.parent : null;
 
         if (anchor == null)
         {
             Debug.LogWarning(
-                "LevelConfig has an enemyCharacterPrefab but there is no anchor to spawn it under. " +
-                "Assign enemyCharacterAnchor or enemyAnimator on ProceduralMatchFighter.");
-            return;
+                $"No anchor to spawn character prefab '{prefab.name}' under. Assign the character " +
+                "anchors or the placeholder animators on ProceduralMatchFighter.");
+            return placeholderAnimator;
         }
 
         Vector3 localPosition = placeholder != null ? placeholder.localPosition : Vector3.zero;
@@ -227,15 +251,24 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         spawned.transform.SetLocalPositionAndRotation(localPosition, localRotation);
         spawned.transform.localScale = Vector3.Scale(prefab.transform.localScale, localScale);
 
-        enemyAnimator = spawned.GetComponentInChildren<FighterAnimator>();
-        if (enemyAnimator == null)
+        FighterAnimator spawnedAnimator = spawned.GetComponentInChildren<FighterAnimator>();
+        if (spawnedAnimator == null)
         {
             Animator animator = spawned.GetComponentInChildren<Animator>();
             if (animator != null)
             {
-                enemyAnimator = animator.gameObject.AddComponent<FighterAnimator>();
+                spawnedAnimator = animator.gameObject.AddComponent<FighterAnimator>();
+            }
+            else
+            {
+                // Easy to hit by pointing a config straight at an imported .psd,
+                // which has the sprite hierarchy but no Animator.
+                Debug.LogWarning(
+                    $"Character prefab '{prefab.name}' has no Animator, so its attack animation " +
+                    "will not play. Use a prefab with an Animator + FighterAnimator on it.");
             }
         }
+        return spawnedAnimator;
     }
 
     private int GetBoardSizeForDifficulty()
