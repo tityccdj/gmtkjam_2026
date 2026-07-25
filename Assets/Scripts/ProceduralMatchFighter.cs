@@ -115,7 +115,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private int rows;
     private int columns;
     private float turnDuration;
-    private Sprite circleSprite;
+    private Sprite[] orbSprites;
     private OrbView selectedOrb;
     private OrbView mouseHoverOrb;
     private bool inputReady;
@@ -166,11 +166,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             cpu.Name = "PLAYER 2";
         }
 
-        Sprite[] sprites = Resources.LoadAll<Sprite>("sprites/circle");
-        if (sprites.Length > 0)
-        {
-            circleSprite = sprites[0];
-        }
+        orbSprites = new Sprite[5];
+        orbSprites[(int)OrbType.Red] = Resources.Load<Sprite>("Orbs/atk_orb");
+        orbSprites[(int)OrbType.Blue] = Resources.Load<Sprite>("Orbs/time_orb");
+        orbSprites[(int)OrbType.Green] = Resources.Load<Sprite>("Orbs/heal_orb");
+        orbSprites[(int)OrbType.Yellow] = Resources.Load<Sprite>("Orbs/shield_orb");
+        orbSprites[(int)OrbType.Purple] = Resources.Load<Sprite>("Orbs/special_orb");
 
         battleBoard.ConfigureGrid(rows, columns);
         FillInitialBoard();
@@ -289,8 +290,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         orbObject.name = $"Orb {row},{column}";
 
         Image image = orbObject.GetComponent<Image>();
-        image.sprite = circleSprite;
-        image.color = OrbColors[(int)type];
+        image.sprite = orbSprites[(int)type];
+        image.color = Color.white;
         image.preserveAspect = true;
 
         Button button = orbObject.GetComponent<Button>();
@@ -622,20 +623,31 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private IEnumerator AnimateSwap(OrbView first, OrbView second)
     {
-        Color firstStart = first.Image.color;
-        Color secondStart = second.Image.color;
         float elapsed = 0f;
-        while (elapsed < 0.12f)
+        while (elapsed < 0.06f)
         {
             elapsed += Time.deltaTime;
-            float t = elapsed / 0.12f;
-            first.Image.color = Color.Lerp(firstStart, OrbColors[(int)first.Type], t);
-            second.Image.color = Color.Lerp(secondStart, OrbColors[(int)second.Type], t);
+            float t = elapsed / 0.06f;
+            first.Rect.localScale = Vector3.Lerp(Vector3.one, Vector3.zero, t);
+            second.Rect.localScale = Vector3.Lerp(Vector3.one, Vector3.zero, t);
             yield return null;
         }
 
         RefreshOrb(first);
         RefreshOrb(second);
+
+        elapsed = 0f;
+        while (elapsed < 0.06f)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / 0.06f;
+            first.Rect.localScale = Vector3.Lerp(Vector3.zero, Vector3.one, t);
+            second.Rect.localScale = Vector3.Lerp(Vector3.zero, Vector3.one, t);
+            yield return null;
+        }
+
+        first.Rect.localScale = Vector3.one;
+        second.Rect.localScale = Vector3.one;
     }
 
     private IEnumerator AnimateInvalidSwap(OrbView first, OrbView second)
@@ -1333,9 +1345,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         (first.Type, second.Type) = (second.Type, first.Type);
     }
 
-    private static void RefreshOrb(OrbView orb)
+    private void RefreshOrb(OrbView orb)
     {
-        orb.Image.color = OrbColors[(int)orb.Type];
+        orb.Image.sprite = orbSprites[(int)orb.Type];
+        orb.Image.color = Color.white;
         orb.Rect.localScale = Vector3.one;
     }
 }
