@@ -101,6 +101,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     [Header("Level")]
     [SerializeField] private LevelConfig levelConfig;
+    [SerializeField] private SpriteRenderer background;
 
     [Header("UI")]
     [SerializeField] private UIBattleHud hud;
@@ -140,6 +141,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         if (LevelSelection.Current != null)
         {
             levelConfig = LevelSelection.Current;
+            background.sprite = levelConfig.backgroundSprite;
         }
         if (LevelSelection.PlayerVsPlayer.HasValue)
         {

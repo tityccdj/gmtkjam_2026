@@ -33,3 +33,4 @@ MonoBehaviour:
   lowHealthGreenWeight: 6
   lowShieldThreshold: 15
   lowShieldYellowWeight: 4
+  backgroundSprite: {fileID: -1499577077096896584, guid: 0886ce33043c3f8428adf7b62b5faeb8, type: 3}

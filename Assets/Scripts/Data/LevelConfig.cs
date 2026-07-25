@@ -31,4 +31,7 @@ public class LevelConfig : ScriptableObject
     public int lowHealthGreenWeight = 6;
     public int lowShieldThreshold = 15;
     public int lowShieldYellowWeight = 4;
+
+    [Header("Environment")]
+    public Sprite backgroundSprite;
 }
