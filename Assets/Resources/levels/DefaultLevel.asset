@@ -23,7 +23,8 @@ MonoBehaviour:
   healPerOrb: 2
   shieldPerOrb: 1
   specialPerOrb: 1
-  enemyName: CPU
+  enemyName: Entry Gate
+  enemyCharacterPrefab: {fileID: -8653719598885068355, guid: fa08cb663448aef4f838bcbbf32f860c, type: 3}
   redWeight: 5
   blueWeight: 1
   greenWeight: 1
