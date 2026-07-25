@@ -20,6 +20,9 @@ public class LevelConfig : ScriptableObject
 
     [Header("Enemy")]
     public string enemyName = "CPU";
+    // Spawned in place of the character sitting under EnemyPanel in the Game scene.
+    // Leave empty to keep whatever the scene already has.
+    public GameObject enemyCharacterPrefab;
 
     [Header("CPU Behavior")]
     public int redWeight = 5;

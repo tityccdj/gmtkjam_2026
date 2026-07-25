@@ -113,6 +113,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [SerializeField] private FighterAnimator playerAnimator;
     [SerializeField] private FighterAnimator enemyAnimator;
 
+    [Header("Characters")]
+    // Parent the level's enemy character is spawned under. Falls back to the
+    // parent of the character already wired into enemyAnimator.
+    [SerializeField] private Transform enemyCharacterAnchor;
+
     private int rows;
     private int columns;
     private float turnDuration;
@@ -152,6 +157,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             gameMode = LevelSelection.GameMode.Value;
         }
 
+        ApplyEnemyCharacter();
+
         int boardSize = GetBoardSizeForDifficulty();
         rows = boardSize;
         columns = boardSize;
@@ -179,6 +186,56 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         FillInitialBoard();
         battleBoard.gameObject.SetActive(false);
         PrepareForInput();
+    }
+
+    // Swaps the scene-placed opponent for the one the level config asks for.
+    // The placeholder acts as the placement anchor so level prefabs don't have
+    // to know anything about the arena layout - author them facing right like
+    // the player character and the mirroring comes from the placeholder.
+    private void ApplyEnemyCharacter()
+    {
+        GameObject prefab = levelConfig != null ? levelConfig.enemyCharacterPrefab : null;
+        if (prefab == null)
+        {
+            return;
+        }
+
+        Transform placeholder = enemyAnimator != null ? enemyAnimator.transform : null;
+        Transform anchor = enemyCharacterAnchor != null
+            ? enemyCharacterAnchor
+            : placeholder != null ? placeholder.parent : null;
+
+        if (anchor == null)
+        {
+            Debug.LogWarning(
+                "LevelConfig has an enemyCharacterPrefab but there is no anchor to spawn it under. " +
+                "Assign enemyCharacterAnchor or enemyAnimator on ProceduralMatchFighter.");
+            return;
+        }
+
+        Vector3 localPosition = placeholder != null ? placeholder.localPosition : Vector3.zero;
+        Quaternion localRotation = placeholder != null ? placeholder.localRotation : Quaternion.identity;
+        Vector3 localScale = placeholder != null ? placeholder.localScale : Vector3.one;
+
+        if (placeholder != null)
+        {
+            Destroy(placeholder.gameObject);
+        }
+
+        GameObject spawned = Instantiate(prefab, anchor);
+        spawned.name = prefab.name;
+        spawned.transform.SetLocalPositionAndRotation(localPosition, localRotation);
+        spawned.transform.localScale = Vector3.Scale(prefab.transform.localScale, localScale);
+
+        enemyAnimator = spawned.GetComponentInChildren<FighterAnimator>();
+        if (enemyAnimator == null)
+        {
+            Animator animator = spawned.GetComponentInChildren<Animator>();
+            if (animator != null)
+            {
+                enemyAnimator = animator.gameObject.AddComponent<FighterAnimator>();
+            }
+        }
     }
 
     private int GetBoardSizeForDifficulty()
