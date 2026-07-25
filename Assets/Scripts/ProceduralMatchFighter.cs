@@ -338,10 +338,6 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             return;
         }
         mouseHoverOrb = null;
-        if (!battleEnded && (!inputReady || IsHumanTurn) && !boardBusy)
-        {
-            MoveFocusTo(0, 0);
-        }
     }
 
     private void OnOrbPointerClicked(OrbView orb)
@@ -852,7 +848,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             UIFighterPanel hitPanel = target == player ? playerPanel : enemyPanel;
             yield return hitPanel.Flash(new Color(1f, 0.14f, 0.12f));
         }
-        yield return new WaitForSeconds(1f);
+        yield return new WaitForSeconds(3f);
 
         if (IsFreePlay)
         {
