@@ -170,6 +170,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             levelConfig = LevelSelection.Current;
             background.sprite = levelConfig.backgroundSprite;
+            // Story levels carry their own difficulty curve. Free play keeps the
+            // difficulty and boss settings authored on this component instead.
+            enemyDifficulty = levelConfig.enemyDifficulty;
+            isBoss = levelConfig.isBoss;
+            bossID = (int)levelConfig.bossID;
         }
         if (LevelSelection.PlayerVsPlayer.HasValue)
         {

@@ -3,7 +3,19 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "LevelConfig", menuName = "GMTK/Level Config")]
 public class LevelConfig : ScriptableObject
 {
+    [Header("Difficulty")]
+    // Drives board size and how fast / how many moves the CPU makes per turn.
+    public ProceduralMatchFighter.EnemyDifficulty enemyDifficulty =
+        ProceduralMatchFighter.EnemyDifficulty.Normal;
+    // Story levels are fought against one of the bosses in BossController; each
+    // boss brings its own gimmick and health multiplier.
+    public bool isBoss = true;
+    public BossController.BossId bossID = BossController.BossId.EntryGate;
+
     [Header("Board")]
+    // Length of a turn. Note the boss can override the player's own turn length
+    // (Entry Gate pins it to 10s, TikToker shortens every few turns), but the CPU
+    // turn always uses this value - so a shorter turn also means fewer CPU moves.
     public float turnDuration = 10f;
 
     [Header("Fighter Balance")]

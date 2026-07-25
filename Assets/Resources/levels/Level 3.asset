@@ -12,27 +12,30 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 845030a112fc44196a84ae8d65bd63f9, type: 3}
   m_Name: Level 3
   m_EditorClassIdentifier: Assembly-CSharp::LevelConfig
-  turnDuration: 10
-  healthCap: 100
-  timePerBlueOrb: 1
-  shieldCap: 30
-  specialBurstThreshold: 12
-  specialBurstAttackBonus: 18
-  shieldBlockRatio: 0.7
+  enemyDifficulty: 2
+  isBoss: 1
+  bossID: 2
+  turnDuration: 8
+  healthCap: 120
+  timePerBlueOrb: 0.8
+  shieldCap: 25
+  specialBurstThreshold: 14
+  specialBurstAttackBonus: 16
+  shieldBlockRatio: 0.6
   attackPerOrb: 4
   healPerOrb: 2
   shieldPerOrb: 1
   specialPerOrb: 1
   enemyName: General
   enemyCharacterPrefab: {fileID: 0}
-  redWeight: 5
+  redWeight: 7
   blueWeight: 1
   greenWeight: 1
   yellowWeight: 1
-  purpleWeight: 3
-  lowHealthThreshold: 50
-  lowHealthGreenWeight: 6
-  lowShieldThreshold: 15
-  lowShieldYellowWeight: 4
+  purpleWeight: 4
+  lowHealthThreshold: 60
+  lowHealthGreenWeight: 7
+  lowShieldThreshold: 18
+  lowShieldYellowWeight: 5
   backgroundSprite: {fileID: -1499577077096896584, guid: 0886ce33043c3f8428adf7b62b5faeb8, type: 3}
   thumbnail: {fileID: 21300000, guid: 594e3a9b9b5db954cbbcad66abb5dbf6, type: 3}

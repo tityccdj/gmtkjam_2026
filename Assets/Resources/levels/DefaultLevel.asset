@@ -12,27 +12,30 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 845030a112fc44196a84ae8d65bd63f9, type: 3}
   m_Name: DefaultLevel
   m_EditorClassIdentifier: Assembly-CSharp::LevelConfig
+  enemyDifficulty: 0
+  isBoss: 1
+  bossID: 5
   turnDuration: 10
   healthCap: 100
-  timePerBlueOrb: 1
-  shieldCap: 30
-  specialBurstThreshold: 12
-  specialBurstAttackBonus: 18
-  shieldBlockRatio: 0.7
-  attackPerOrb: 4
-  healPerOrb: 2
-  shieldPerOrb: 1
-  specialPerOrb: 1
+  timePerBlueOrb: 1.5
+  shieldCap: 40
+  specialBurstThreshold: 8
+  specialBurstAttackBonus: 20
+  shieldBlockRatio: 0.85
+  attackPerOrb: 6
+  healPerOrb: 4
+  shieldPerOrb: 2
+  specialPerOrb: 2
   enemyName: Entry Gate
   enemyCharacterPrefab: {fileID: 2049934401639514644, guid: ec1f22dda67cad341975856248464f84, type: 3}
-  redWeight: 5
-  blueWeight: 1
-  greenWeight: 1
-  yellowWeight: 1
-  purpleWeight: 3
-  lowHealthThreshold: 50
-  lowHealthGreenWeight: 6
-  lowShieldThreshold: 15
-  lowShieldYellowWeight: 4
+  redWeight: 2
+  blueWeight: 3
+  greenWeight: 2
+  yellowWeight: 2
+  purpleWeight: 1
+  lowHealthThreshold: 30
+  lowHealthGreenWeight: 3
+  lowShieldThreshold: 8
+  lowShieldYellowWeight: 2
   backgroundSprite: {fileID: -1499577077096896584, guid: 0886ce33043c3f8428adf7b62b5faeb8, type: 3}
   thumbnail: {fileID: 21300000, guid: c4ea25072a9139b42b723c4c46294443, type: 3}

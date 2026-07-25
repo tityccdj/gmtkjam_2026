@@ -12,8 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 845030a112fc44196a84ae8d65bd63f9, type: 3}
   m_Name: Level 2
   m_EditorClassIdentifier: Assembly-CSharp::LevelConfig
+  enemyDifficulty: 1
+  isBoss: 1
+  bossID: 3
   turnDuration: 10
-  healthCap: 100
+  healthCap: 110
   timePerBlueOrb: 1
   shieldCap: 30
   specialBurstThreshold: 12
