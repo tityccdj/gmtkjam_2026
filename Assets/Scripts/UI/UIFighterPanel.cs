@@ -15,6 +15,8 @@ public class UIFighterPanel : MonoBehaviour
     private TMP_Text[] pendingTexts;
     [SerializeField]
     private SpriteRenderer arenaSprite;
+    [SerializeField]
+    private GameObject specialPanel;
 
     public void SetName(string text)
     {
@@ -69,6 +71,11 @@ public class UIFighterPanel : MonoBehaviour
         {
             pendingCoroutines = new Coroutine[pendingTexts.Length];
             previousPendingTexts = new string[pendingTexts.Length];
+        }
+
+        if (specialPanel != null)
+        {
+            specialPanel.SetActive(false);
         }
     }
 
@@ -125,5 +132,47 @@ public class UIFighterPanel : MonoBehaviour
             yield return new WaitForSeconds(0.07f);
         }
         arenaSprite.color = original;
+    }
+
+    public IEnumerator ShowSpecialPanel()
+    {
+        if (specialPanel != null)
+        {
+            Transform panelTransform = specialPanel.transform;
+            panelTransform.localScale = Vector3.zero;
+            specialPanel.SetActive(true);
+            
+            float elapsed = 0f;
+            float durationIn = 0.35f;
+            float c1 = 1.70158f;
+            float c3 = c1 + 1f;
+
+            while (elapsed < durationIn)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / durationIn;
+                float tMinus1 = t - 1f;
+                float scale = 1f + c3 * (tMinus1 * tMinus1 * tMinus1) + c1 * (tMinus1 * tMinus1);
+                panelTransform.localScale = Vector3.one * Mathf.Max(0f, scale);
+                yield return null;
+            }
+            panelTransform.localScale = Vector3.one;
+
+            yield return new WaitForSeconds(1.4f);
+
+            float elapsedOut = 0f;
+            float durationOut = 0.25f;
+            while (elapsedOut < durationOut)
+            {
+                elapsedOut += Time.deltaTime;
+                float t = elapsedOut / durationOut;
+                float scale = c3 * (t * t * t) - c1 * (t * t);
+                panelTransform.localScale = Vector3.one * Mathf.Max(0f, 1f - scale);
+                yield return null;
+            }
+            
+            specialPanel.SetActive(false);
+            panelTransform.localScale = Vector3.one;
+        }
     }
 }

@@ -825,6 +825,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         int specialBursts = acting.Special / levelConfig.specialBurstThreshold;
         if (specialBursts > 0)
         {
+            UIFighterPanel actingPanel = playerTurn ? playerPanel : enemyPanel;
+            yield return actingPanel.ShowSpecialPanel();
+
             attack += specialBursts * levelConfig.specialBurstAttackBonus;
             acting.Special %= levelConfig.specialBurstThreshold;
         }
@@ -960,6 +963,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 cpu.Special += specialGain;
                 if (cpu.Special >= levelConfig.specialBurstThreshold)
                 {
+                    yield return enemyPanel.ShowSpecialPanel();
                     if (enemyAnimator != null) enemyAnimator.TriggerAttack();
                     cpu.Special -= levelConfig.specialBurstThreshold;
                     int damage = power + levelConfig.specialBurstAttackBonus + enemyAttackBonus;
