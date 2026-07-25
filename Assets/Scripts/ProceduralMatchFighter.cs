@@ -1,9 +1,11 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -13,6 +15,9 @@ using UnityEngine.InputSystem.UI;
 
 public sealed class ProceduralMatchFighter : MonoBehaviour
 {
+    private const string AntiStuckOverlayResource = "ui/AntiStuckOverlay";
+    private const int MaxShuffleAttempts = 256;
+
     public enum BattleGameMode
     {
         Story,
@@ -58,6 +63,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         public Button Button;
         public int Row;
         public int Column;
+        public int LockedPlayerTurns;
     }
 
     private readonly struct BoardMove
@@ -99,6 +105,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [SerializeField] private bool playerVsPlayer = false;
     [SerializeField] private EnemyDifficulty enemyDifficulty = EnemyDifficulty.Normal;
 
+    [Header("Boss")]
+    [SerializeField] private bool isBoss;
+    [Range(1, 5)]
+    [SerializeField] private int bossID = 5;
+    [SerializeField] private BossController bossController;
+
     [Header("Level")]
     [SerializeField] private LevelConfig levelConfig;
     [SerializeField] private SpriteRenderer background;
@@ -119,6 +131,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [SerializeField] private Transform playerCharacterAnchor;
     [SerializeField] private Transform enemyCharacterAnchor;
 
+    [Header("Characters")]
+    [FormerlySerializedAs("playerCharacter")]
+    [SerializeField] private CharacterAnim leftCharacter;
+    [FormerlySerializedAs("enemyCharacter")]
+    [SerializeField] private CharacterAnim rightCharacter;
+
     private int rows;
     private int columns;
     private float turnDuration;
@@ -138,6 +156,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private int killScore;
     private int roundNumber = 1;
     private int enemyAttackBonus;
+    private int bossHealthCap;
+    private bool reshuffling;
+    private GameObject antiStuckOverlay;
+    private TMP_Text antiStuckText;
+    private CanvasGroup antiStuckCanvasGroup;
+    private AudioClip shuffleSound;
 
     private bool IsHumanTurn => playerTurn || playerVsPlayer;
     private bool IsFreePlay => !playerVsPlayer && gameMode == BattleGameMode.FreePlay;
@@ -168,8 +192,13 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         board = new OrbView[rows, columns];
 
         player.Health = levelConfig.healthCap;
-        cpu.Health = levelConfig.healthCap;
-        cpu.Name = IsFreePlay ? "ENEMY #1" : levelConfig.enemyName;
+        SetupBossController();
+        cpu.Health = bossHealthCap;
+        cpu.Name = IsFreePlay
+            ? "ENEMY #1"
+            : bossController != null && bossController.IsActive
+                ? bossController.DisplayName
+                : levelConfig.enemyName;
         if (playerVsPlayer)
         {
             player.Name = "PLAYER 1";
@@ -183,6 +212,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         orbSprites[(int)OrbType.Yellow] = Resources.Load<Sprite>("Orbs/shield_orb");
         orbSprites[(int)OrbType.Purple] = Resources.Load<Sprite>("Orbs/special_orb");
 
+        ResolveCharacterAnimations();
+        CreateAntiStuckOverlay();
         battleBoard.ConfigureGrid(rows, columns);
         FillInitialBoard();
         battleBoard.gameObject.SetActive(false);
@@ -271,6 +302,124 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         return spawnedAnimator;
     }
 
+    private void SetupBossController()
+    {
+        bossHealthCap = levelConfig.healthCap;
+        if (!isBoss || playerVsPlayer)
+        {
+            return;
+        }
+
+        if (bossController == null)
+        {
+            bossController = GetComponent<BossController>();
+        }
+        if (bossController == null)
+        {
+            bossController = gameObject.AddComponent<BossController>();
+        }
+
+        bossController.Setup(new BossController.Param(
+            bossID,
+            levelConfig.healthCap,
+            levelConfig.turnDuration));
+        bossHealthCap = bossController.BossHealthCap;
+    }
+
+    private void ResolveCharacterAnimations()
+    {
+        CharacterAnim[] characters = FindObjectsByType<CharacterAnim>();
+        Array.Sort(characters, (left, right) =>
+            left.transform.position.x.CompareTo(right.transform.position.x));
+        AssignCharactersBySide(characters);
+
+        if (leftCharacter != null && rightCharacter != null)
+        {
+            return;
+        }
+
+        Animator[] animators = FindObjectsByType<Animator>();
+        Array.Sort(animators, (left, right) =>
+            left.transform.position.x.CompareTo(right.transform.position.x));
+
+        if (leftCharacter == null)
+        {
+            Animator leftAnimator = FindAnimatorForSide(animators, true);
+            if (leftAnimator != null)
+            {
+                leftCharacter = GetOrAddCharacterAnim(leftAnimator);
+            }
+        }
+        if (rightCharacter == null)
+        {
+            Animator rightAnimator = FindAnimatorForSide(animators, false);
+            if (rightAnimator != null)
+            {
+                rightCharacter = GetOrAddCharacterAnim(rightAnimator);
+            }
+        }
+    }
+
+    private void AssignCharactersBySide(CharacterAnim[] characters)
+    {
+        if (characters.Length == 0)
+        {
+            return;
+        }
+
+        if (characters.Length == 1)
+        {
+            if (characters[0].transform.position.x <= 0f)
+            {
+                leftCharacter ??= characters[0];
+            }
+            else
+            {
+                rightCharacter ??= characters[0];
+            }
+            return;
+        }
+
+        leftCharacter ??= characters[0];
+        rightCharacter ??= characters[characters.Length - 1];
+    }
+
+    private Animator FindAnimatorForSide(Animator[] animators, bool findLeft)
+    {
+        int start = findLeft ? 0 : animators.Length - 1;
+        int end = findLeft ? animators.Length : -1;
+        int step = findLeft ? 1 : -1;
+
+        for (int index = start; index != end; index += step)
+        {
+            Animator animator = animators[index];
+            CharacterAnim character = animator.GetComponent<CharacterAnim>();
+            if (character == leftCharacter || character == rightCharacter)
+            {
+                continue;
+            }
+
+            if (animators.Length == 1)
+            {
+                bool isOnLeft = animator.transform.position.x <= 0f;
+                if (isOnLeft != findLeft)
+                {
+                    continue;
+                }
+            }
+
+            return animator;
+        }
+
+        return null;
+    }
+
+    private static CharacterAnim GetOrAddCharacterAnim(Animator targetAnimator)
+    {
+        CharacterAnim character = targetAnimator.GetComponent<CharacterAnim>();
+        return character != null ? character : targetAnimator.gameObject.AddComponent<CharacterAnim>();
+    }
+
     private int GetBoardSizeForDifficulty()
     {
         switch (enemyDifficulty)
@@ -313,7 +462,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         if (!inputReady)
         {
-            if (AnyStartPressed())
+            if (!boardBusy && AnyStartPressed())
             {
                 inputReady = true;
                 battleBoard.gameObject.SetActive(true);
@@ -348,10 +497,14 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                         board[move.RowB, move.ColumnB],
                         false));
                 }
+                else if (!HasAvailableMove())
+                {
+                    StartCoroutine(AutoReshuffleBoard());
+                }
             }
         }
 
-        if (timeRemaining <= 0f)
+        if (!boardBusy && timeRemaining <= 0f)
         {
             StartCoroutine(EndTurn());
         }
@@ -366,7 +519,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 OrbType type;
                 do
                 {
-                    type = (OrbType)UnityEngine.Random.Range(0, OrbColors.Length);
+                    type = GetRandomOrbType();
                 }
                 while (WouldCreateStartingMatch(row, column, type));
 
@@ -451,6 +604,16 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
 
         OrbView orb = board[cursorRow, cursorColumn];
+        if (orb.LockedPlayerTurns > 0)
+        {
+            selectedOrb = null;
+            RefreshSelectionFrames();
+            hud.SetMessage(
+                $"BLOCK FROZEN FOR {orb.LockedPlayerTurns} TURN(S)! " +
+                "MATCH IT WITH A CASCADE TO UNLOCK.");
+            return;
+        }
+
         if (selectedOrb == null)
         {
             selectedOrb = orb;
@@ -499,6 +662,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 : $"STORY  |  {enemyDifficulty.ToString().ToUpper()}  |  BLUE = +1s NEXT TURN");
         MoveFocusTo(0, 0);
         UpdateHud();
+        if (!HasAvailableMove())
+        {
+            StartCoroutine(AutoReshuffleBoard());
+        }
     }
 
     private void HandleHumanNavigation(int humanIndex)
@@ -704,7 +871,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             matches = FindMatches();
         }
 
-        hud.SetMessage(combo > 1 ? $"CHAIN x{combo}!" : "MATCH!");
+        bool requiredReshuffle = !HasAvailableMove();
+        if (requiredReshuffle)
+        {
+            yield return AutoReshuffleBoard();
+        }
+        else
+        {
+            hud.SetMessage(combo > 1 ? $"CHAIN x{combo}!" : "MATCH!");
+        }
         boardBusy = false;
         RefreshSelectionFrames();
     }
@@ -806,10 +981,14 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private void QueueMatches(HashSet<OrbView> matches, Fighter owner, int chain)
     {
+        PlayScoreAnimation(owner);
+
+        int blueBlockCount = 0;
         foreach (OrbView orb in matches)
         {
             if (orb.Type == OrbType.Blue)
             {
+                blueBlockCount++;
                 owner.Pending[(int)OrbType.Blue] += 1;
                 owner.StoredTime += Mathf.RoundToInt(levelConfig.timePerBlueOrb);
             }
@@ -817,8 +996,23 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             {
                 owner.Pending[(int)orb.Type] += chain;
             }
+
+            // Cascades may clear frozen cells even though the player cannot swap them.
+            orb.LockedPlayerTurns = 0;
+        }
+
+        if (owner == player && bossController != null && bossController.IsActive)
+        {
+            bossController.RecordPlayerMatch(blueBlockCount);
         }
         UpdateHud();
+    }
+
+    private void PlayScoreAnimation(Fighter scoringFighter)
+    {
+        CharacterAnim scoringCharacter =
+            scoringFighter == player ? leftCharacter : rightCharacter;
+        scoringCharacter?.PlayAttack();
     }
 
     private IEnumerator DestroyMatches(HashSet<OrbView> matches)
@@ -883,7 +1077,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                     continue;
                 }
 
-                orb.Type = (OrbType)UnityEngine.Random.Range(0, OrbColors.Length);
+                orb.Type = GetRandomOrbType();
                 orb.Rect.localScale = Vector3.one;
                 RefreshOrb(orb);
             }
@@ -910,7 +1104,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         int shieldGain = acting.Pending[(int)OrbType.Yellow] * levelConfig.shieldPerOrb;
         int specialGain = acting.Pending[(int)OrbType.Purple] * levelConfig.specialPerOrb;
 
-        acting.Health = Mathf.Min(levelConfig.healthCap, acting.Health + heal);
+        int actingHealthCap = acting == cpu ? bossHealthCap : levelConfig.healthCap;
+        acting.Health = Mathf.Min(actingHealthCap, acting.Health + heal);
         acting.Shield = Mathf.Min(levelConfig.shieldCap, acting.Shield + shieldGain);
         acting.Special += specialGain;
 
@@ -924,9 +1119,20 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             acting.Special %= levelConfig.specialBurstThreshold;
         }
 
-        int maxBlockedThisHit = Mathf.FloorToInt(attack * levelConfig.shieldBlockRatio);
+        bool ignoreShield = false;
+        if (acting == cpu && bossController != null && bossController.IsActive)
+        {
+            attack = bossController.ModifyBossAttack(attack, out ignoreShield);
+        }
+
+        int maxBlockedThisHit = ignoreShield
+            ? 0
+            : Mathf.FloorToInt(attack * levelConfig.shieldBlockRatio);
         int blocked = Mathf.Min(target.Shield, maxBlockedThisHit);
-        target.Shield -= blocked;
+        if (!ignoreShield)
+        {
+            target.Shield -= blocked;
+        }
         int damage = attack - blocked;
         target.Health = Mathf.Max(0, target.Health - damage);
 
@@ -973,6 +1179,31 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             EndBattle(acting);
             yield break;
+        }
+
+        if (acting == player && bossController != null && bossController.IsActive)
+        {
+            TickFrozenBlocks();
+            BossController.TurnResult bossResult = bossController.CompletePlayerTurn();
+            if (bossResult.FreezeBlockCount > 0)
+            {
+                LockRandomBlocks(
+                    bossResult.FreezeBlockCount,
+                    bossResult.FreezeDuration);
+            }
+
+            if (bossResult.Triggered)
+            {
+                hud.SetMessage(bossResult.Message);
+                UpdateHud();
+                yield return new WaitForSeconds(0.8f);
+            }
+
+            if (bossResult.TriggerBadEnd)
+            {
+                EndBattle(cpu, "DOOMSDAY CORE DETONATED! BAD END");
+                yield break;
+            }
         }
 
         boardBusy = false;
@@ -1031,7 +1262,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             case 1:
             {
                 int heal = Mathf.RoundToInt(power * 1.5f);
-                cpu.Health = Mathf.Min(levelConfig.healthCap, cpu.Health + heal);
+                cpu.Health = Mathf.Min(bossHealthCap, cpu.Health + heal);
                 hud.SetMessage($"ENEMY HEAL: +{heal} HP");
                 UpdateHud();
                 yield return enemyPanel.Flash(new Color(0.20f, 1f, 0.42f));
@@ -1082,7 +1313,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         killScore++;
         enemyAttackBonus += 2;
         cpu.Name = $"ENEMY #{killScore + 1}";
-        cpu.Health = levelConfig.healthCap;
+        cpu.Health = bossHealthCap;
         cpu.Shield = 0;
         cpu.Special = 0;
         cpu.StoredTime = 0;
@@ -1097,7 +1328,13 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         Fighter activeFighter = isPlayer ? player : cpu;
         int storedTime = activeFighter.StoredTime;
         activeFighter.StoredTime = 0;
-        timeRemaining = turnDuration + storedTime;
+        float activeTurnDuration = turnDuration;
+        if (isPlayer && bossController != null && bossController.IsActive)
+        {
+            bossController.OnPlayerTurnStarted();
+            activeTurnDuration = bossController.ConsumePlayerTurnDuration();
+        }
+        timeRemaining = activeTurnDuration + storedTime;
         cpuMoveTimer = GetCpuInitialDelay();
         combo = 0;
         selectedOrb = null;
@@ -1133,17 +1370,26 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 : playerVsPlayer
                     ? "Player 2: build your queue before time runs out."
                     : "CPU is planning...");
-        hud.SetHook(
+        string hook =
             IsFreePlay
                 ? $"KILLS {killScore}  |  ENEMY BONUS ATK +{enemyAttackBonus}"
                 : isPlayer
                 ? "RACE AGAINST TIME. MATCH WISELY. SURVIVE THE COUNTDOWN."
-                : "EVERY 10 SECONDS, DESTINY IS DECIDED.");
+                : "EVERY 10 SECONDS, DESTINY IS DECIDED.";
+        if (bossController != null && bossController.IsActive)
+        {
+            hook += $"  |  {bossController.GetStatusText()}";
+        }
+        hud.SetHook(hook);
         UpdateTimer();
         UpdateHud();
+        if (!HasAvailableMove())
+        {
+            StartCoroutine(AutoReshuffleBoard());
+        }
     }
 
-    private void EndBattle(Fighter winner)
+    private void EndBattle(Fighter winner, string overrideMessage = null)
     {
         battleEnded = true;
         boardBusy = true;
@@ -1172,7 +1418,9 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 : new Color(1f, 0.27f, 0.30f));
         hud.SetTimer("0", Color.white, false);
         hud.SetMessage(
-            IsFreePlay
+            !string.IsNullOrEmpty(overrideMessage)
+                ? overrideMessage
+                : IsFreePlay
                 ? $"SURVIVED {killScore} KILLS"
                 : playerVsPlayer
                 ? $"{winner.Name} decided destiny."
@@ -1252,7 +1500,6 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         if (bestMoves.Count == 0)
         {
-            ShuffleBoard();
             return BoardMove.Invalid;
         }
         return bestMoves[UnityEngine.Random.Range(0, bestMoves.Count)];
@@ -1280,7 +1527,6 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         if (validMoves.Count == 0)
         {
-            ShuffleBoard();
             return BoardMove.Invalid;
         }
         return validMoves[UnityEngine.Random.Range(0, validMoves.Count)];
@@ -1290,10 +1536,59 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         OrbView first = board[rowA, columnA];
         OrbView second = board[rowB, columnB];
+        if (playerTurn &&
+            (first.LockedPlayerTurns > 0 || second.LockedPlayerTurns > 0))
+        {
+            return false;
+        }
+
         SwapTypes(first, second);
         bool valid = FindMatches().Count > 0;
         SwapTypes(first, second);
         return valid;
+    }
+
+    private void TickFrozenBlocks()
+    {
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                OrbView orb = board[row, column];
+                if (orb.LockedPlayerTurns <= 0)
+                {
+                    continue;
+                }
+
+                orb.LockedPlayerTurns--;
+                RefreshOrb(orb);
+            }
+        }
+    }
+
+    private void LockRandomBlocks(int count, int duration)
+    {
+        List<OrbView> candidates = new List<OrbView>();
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                if (board[row, column].LockedPlayerTurns <= 0)
+                {
+                    candidates.Add(board[row, column]);
+                }
+            }
+        }
+
+        int lockCount = Mathf.Min(Mathf.Max(0, count), candidates.Count);
+        for (int i = 0; i < lockCount; i++)
+        {
+            int index = UnityEngine.Random.Range(0, candidates.Count);
+            OrbView orb = candidates[index];
+            candidates.RemoveAt(index);
+            orb.LockedPlayerTurns = Mathf.Max(1, duration);
+            RefreshOrb(orb);
+        }
     }
 
     private void ScoreCpuMove(
@@ -1357,18 +1652,322 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
     }
 
-    private void ShuffleBoard()
+    private bool HasAvailableMove()
     {
         for (int row = 0; row < rows; row++)
         {
             for (int column = 0; column < columns; column++)
             {
-                board[row, column].Type = (OrbType)UnityEngine.Random.Range(0, OrbColors.Length);
+                if (column + 1 < columns &&
+                    IsValidMove(row, column, row, column + 1))
+                {
+                    return true;
+                }
+                if (row + 1 < rows &&
+                    IsValidMove(row, column, row + 1, column))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private IEnumerator AutoReshuffleBoard()
+    {
+        if (reshuffling)
+        {
+            yield break;
+        }
+
+        reshuffling = true;
+        boardBusy = true;
+        selectedOrb = null;
+        battleBoard.HideSelection();
+        hud.SetMessage("NO MOVES! RESHUFFLING...");
+        ShowAntiStuckOverlay();
+        PlayShuffleSound();
+
+        yield return ScaleBoard(Vector3.one, Vector3.one * 0.12f, 0.14f);
+
+        bool shuffled = TryCreatePlayableShuffle();
+        if (!shuffled)
+        {
+            Debug.LogError("Anti-Stuck System could not create a playable board.", this);
+        }
+        RefreshAllOrbs();
+
+        yield return ScaleBoard(Vector3.one * 0.12f, Vector3.one, 0.24f);
+        yield return new WaitForSeconds(0.55f);
+
+        timeRemaining = turnDuration;
+        cpuMoveTimer = GetCpuInitialDelay();
+        UpdateTimer();
+        HideAntiStuckOverlay();
+        hud.SetMessage("BOARD READY! TIMER RESET.");
+        reshuffling = false;
+        boardBusy = false;
+        RefreshSelectionFrames();
+    }
+
+    private bool TryCreatePlayableShuffle()
+    {
+        List<OrbType> types = new List<OrbType>(rows * columns);
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                types.Add(board[row, column].Type);
+            }
+        }
+
+        for (int attempt = 0; attempt < MaxShuffleAttempts; attempt++)
+        {
+            ShuffleTypes(types);
+            ApplyTypes(types);
+            if (FindMatches().Count == 0 && HasAvailableMove())
+            {
+                return true;
+            }
+        }
+
+        for (int attempt = 0; attempt < MaxShuffleAttempts; attempt++)
+        {
+            GenerateBoardWithoutStartingMatches();
+            if (HasAvailableMove())
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void ShuffleTypes(List<OrbType> types)
+    {
+        for (int index = types.Count - 1; index > 0; index--)
+        {
+            int swapIndex = UnityEngine.Random.Range(0, index + 1);
+            (types[index], types[swapIndex]) = (types[swapIndex], types[index]);
+        }
+    }
+
+    private void ApplyTypes(List<OrbType> types)
+    {
+        int index = 0;
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                board[row, column].Type = types[index++];
+            }
+        }
+    }
+
+    private void GenerateBoardWithoutStartingMatches()
+    {
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                OrbType type;
+                do
+                {
+                    type = GetRandomOrbType();
+                }
+                while (WouldCreateStartingMatch(row, column, type));
+                board[row, column].Type = type;
+            }
+        }
+    }
+
+    private OrbType GetRandomOrbType()
+    {
+        float totalWeight = 0f;
+        for (int index = 0; index < OrbColors.Length; index++)
+        {
+            totalWeight += bossController != null && bossController.IsActive
+                ? bossController.GetDropWeight(index, playerTurn)
+                : 1f;
+        }
+
+        float roll = UnityEngine.Random.value * totalWeight;
+        for (int index = 0; index < OrbColors.Length; index++)
+        {
+            roll -= bossController != null && bossController.IsActive
+                ? bossController.GetDropWeight(index, playerTurn)
+                : 1f;
+            if (roll <= 0f)
+            {
+                return (OrbType)index;
+            }
+        }
+
+        return OrbType.Purple;
+    }
+
+    private void RefreshAllOrbs()
+    {
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
                 board[row, column].Rect.localScale = Vector3.one;
                 RefreshOrb(board[row, column]);
             }
         }
-        hud.SetMessage("No moves - board reshuffled!");
+    }
+
+    private IEnumerator ScaleBoard(Vector3 from, Vector3 to, float duration)
+    {
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float progress = Mathf.Clamp01(elapsed / duration);
+            Vector3 scale = Vector3.Lerp(from, to, progress);
+            for (int row = 0; row < rows; row++)
+            {
+                for (int column = 0; column < columns; column++)
+                {
+                    board[row, column].Rect.localScale = scale;
+                }
+            }
+            yield return null;
+        }
+
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                board[row, column].Rect.localScale = to;
+            }
+        }
+    }
+
+    private void CreateAntiStuckOverlay()
+    {
+        GameObject overlayPrefab = Resources.Load<GameObject>(AntiStuckOverlayResource);
+        if (overlayPrefab == null)
+        {
+            Debug.LogWarning(
+                $"Missing Resources/{AntiStuckOverlayResource}.prefab.",
+                this);
+            return;
+        }
+
+        Canvas canvas = hud.GetComponentInParent<Canvas>();
+        Transform parent = canvas != null ? canvas.transform : hud.transform;
+        antiStuckOverlay = Instantiate(overlayPrefab, parent, false);
+        antiStuckOverlay.name = "AntiStuckOverlay";
+        antiStuckOverlay.transform.SetAsLastSibling();
+
+        RectTransform panelRect = antiStuckOverlay.GetComponent<RectTransform>();
+        panelRect.anchorMin = Vector2.one * 0.5f;
+        panelRect.anchorMax = Vector2.one * 0.5f;
+        panelRect.pivot = Vector2.one * 0.5f;
+        panelRect.anchoredPosition = Vector2.zero;
+        panelRect.sizeDelta = new Vector2(780f, 150f);
+
+        GameObject textObject = new GameObject(
+            "Message",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI));
+        textObject.layer = antiStuckOverlay.layer;
+        textObject.transform.SetParent(antiStuckOverlay.transform, false);
+
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(28f, 12f);
+        textRect.offsetMax = new Vector2(-28f, -12f);
+
+        antiStuckText = textObject.GetComponent<TextMeshProUGUI>();
+        antiStuckText.text = "NO MOVES! RESHUFFLING...";
+        antiStuckText.alignment = TextAlignmentOptions.Center;
+        antiStuckText.fontStyle = FontStyles.Bold;
+        antiStuckText.fontSize = 46f;
+        antiStuckText.enableAutoSizing = true;
+        antiStuckText.fontSizeMin = 24f;
+        antiStuckText.fontSizeMax = 52f;
+        antiStuckText.color = new Color(1f, 0.88f, 0.35f);
+        antiStuckText.raycastTarget = false;
+        if (GameFontController.Font != null)
+        {
+            antiStuckText.font = GameFontController.Font;
+        }
+
+        antiStuckCanvasGroup = antiStuckOverlay.AddComponent<CanvasGroup>();
+        antiStuckCanvasGroup.blocksRaycasts = false;
+        antiStuckCanvasGroup.interactable = false;
+        antiStuckOverlay.SetActive(false);
+    }
+
+    private void ShowAntiStuckOverlay()
+    {
+        if (antiStuckOverlay == null)
+        {
+            return;
+        }
+
+        antiStuckOverlay.transform.SetAsLastSibling();
+        antiStuckOverlay.transform.localScale = Vector3.one * 0.85f;
+        antiStuckCanvasGroup.alpha = 0f;
+        antiStuckOverlay.SetActive(true);
+        LeanTween.cancel(antiStuckOverlay);
+        LeanTween.alphaCanvas(antiStuckCanvasGroup, 1f, 0.12f);
+        LeanTween.scale(antiStuckOverlay, Vector3.one, 0.18f)
+            .setEaseOutBack();
+    }
+
+    private void HideAntiStuckOverlay()
+    {
+        if (antiStuckOverlay == null)
+        {
+            return;
+        }
+
+        LeanTween.cancel(antiStuckOverlay);
+        antiStuckOverlay.SetActive(false);
+    }
+
+    private void PlayShuffleSound()
+    {
+        shuffleSound ??= CreateShuffleSound();
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFXOneShot(shuffleSound, 0.8f);
+        }
+    }
+
+    private static AudioClip CreateShuffleSound()
+    {
+        const int sampleRate = 22050;
+        const float duration = 0.34f;
+        int sampleCount = Mathf.CeilToInt(sampleRate * duration);
+        float[] samples = new float[sampleCount];
+
+        for (int index = 0; index < sampleCount; index++)
+        {
+            float time = index / (float)sampleRate;
+            float progress = time / duration;
+            float envelope = Mathf.Pow(1f - progress, 1.8f);
+            float sweep = Mathf.Sin(
+                2f * Mathf.PI * (160f * time + 920f * time * time));
+            float noise = Mathf.PerlinNoise(index * 0.071f, 0.37f) * 2f - 1f;
+            float tick = Mathf.Sin(2f * Mathf.PI * 42f * time) > 0.78f ? 1f : 0.2f;
+            samples[index] = (sweep * 0.52f + noise * 0.22f) * envelope * tick;
+        }
+
+        AudioClip clip = AudioClip.Create(
+            "AntiStuckShuffle",
+            sampleCount,
+            1,
+            sampleRate,
+            false);
+        clip.SetData(samples, 0);
+        return clip;
     }
 
     private void UpdateTimer()
@@ -1390,13 +1989,16 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             $"SH {player.Shield}   SP {player.Special}/{levelConfig.specialBurstThreshold}" +
             (IsFreePlay ? $"   KILLS {killScore}" : ""));
         enemyPanel.SetStats(
-            $"HP {cpu.Health}/{levelConfig.healthCap}   NEXT +{cpu.StoredTime}s\n" +
+            $"HP {cpu.Health}/{bossHealthCap}   NEXT +{cpu.StoredTime}s\n" +
             $"SH {cpu.Shield}   SP {cpu.Special}/{levelConfig.specialBurstThreshold}" +
             (IsFreePlay
                 ? $"   ATK +{enemyAttackBonus}"
-                : $"   {enemyDifficulty.ToString().ToUpper()}"));
+                : $"   {enemyDifficulty.ToString().ToUpper()}") +
+            (bossController != null && bossController.IsActive
+                ? $"\n{bossController.GetStatusText()}"
+                : ""));
         playerPanel.SetHealth((float)player.Health / levelConfig.healthCap);
-        enemyPanel.SetHealth((float)cpu.Health / levelConfig.healthCap);
+        enemyPanel.SetHealth((float)cpu.Health / bossHealthCap);
 
         for (int i = 0; i < ShortNames.Length; i++)
         {
