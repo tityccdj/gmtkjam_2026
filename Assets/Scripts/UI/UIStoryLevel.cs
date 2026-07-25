@@ -44,6 +44,11 @@ public class UIStoryLevel : MonoBehaviour
             int index = i;
             bool unlocked = LevelSaveState.IsUnlocked(level, defaultUnlocked: i == 0);
             GameObject template = unlocked ? unlockedTemplate : lockedTemplate;
+            var thumbnail = template.transform.Find("Thumbnail")?.GetComponent<Image>();
+            if (thumbnail != null)
+            {
+                thumbnail.sprite = level.thumbnail;
+            }
             GameObject entry = Instantiate(template, levelsContainer);
             entry.SetActive(true);
 

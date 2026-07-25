@@ -34,3 +34,4 @@ MonoBehaviour:
   lowShieldThreshold: 15
   lowShieldYellowWeight: 4
   backgroundSprite: {fileID: -1499577077096896584, guid: 0886ce33043c3f8428adf7b62b5faeb8, type: 3}
+  thumbnail: {fileID: 21300000, guid: 5f909f2ee4e43d14891206f1ba99847c, type: 3}

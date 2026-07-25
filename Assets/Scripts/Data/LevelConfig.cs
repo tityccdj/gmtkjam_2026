@@ -34,4 +34,5 @@ public class LevelConfig : ScriptableObject
 
     [Header("Environment")]
     public Sprite backgroundSprite;
+    public Sprite thumbnail;
 }
