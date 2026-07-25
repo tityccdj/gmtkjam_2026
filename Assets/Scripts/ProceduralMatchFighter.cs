@@ -122,20 +122,18 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [SerializeField] private UIFighterPanel enemyPanel;
     [SerializeField] private UIRoundTextPanel roundTextPanel;
     [SerializeField] private UIBattleResultSlider battleResultSlider;
-    [SerializeField] private FighterAnimator playerAnimator;
-    [SerializeField] private FighterAnimator enemyAnimator;
 
     [Header("Characters")]
-    // Parents the selected characters are spawned under. Each falls back to the
-    // parent of the character already wired into playerAnimator / enemyAnimator.
-    [SerializeField] private Transform playerCharacterAnchor;
-    [SerializeField] private Transform enemyCharacterAnchor;
-
-    [Header("Characters")]
+    // The character standing on each side. Both are swapped out for the picked
+    // character prefabs in ApplyCharacters and drive the attack animations.
     [FormerlySerializedAs("playerCharacter")]
     [SerializeField] private CharacterAnim leftCharacter;
     [FormerlySerializedAs("enemyCharacter")]
     [SerializeField] private CharacterAnim rightCharacter;
+    // Parents the picked characters are spawned under. Each falls back to the
+    // parent of the character already wired above.
+    [SerializeField] private Transform playerCharacterAnchor;
+    [SerializeField] private Transform enemyCharacterAnchor;
 
     private int rows;
     private int columns;
@@ -226,10 +224,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     // story level asks for.
     private void ApplyCharacters()
     {
-        playerAnimator = SpawnCharacter(
+        leftCharacter = SpawnCharacter(
             LevelSelection.PlayerCharacter != null ? LevelSelection.PlayerCharacter.characterPrefab : null,
             playerCharacterAnchor,
-            playerAnimator);
+            leftCharacter);
 
         GameObject enemyPrefab = LevelSelection.OpponentCharacter != null
             ? LevelSelection.OpponentCharacter.characterPrefab
@@ -238,24 +236,27 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             enemyPrefab = levelConfig.enemyCharacterPrefab;
         }
-        enemyAnimator = SpawnCharacter(enemyPrefab, enemyCharacterAnchor, enemyAnimator);
+        rightCharacter = SpawnCharacter(enemyPrefab, enemyCharacterAnchor, rightCharacter);
     }
 
     // The character already placed in the scene doubles as the placement anchor,
     // so character prefabs don't have to know anything about the arena layout -
     // author them facing right like the player side and the mirroring comes from
-    // the placeholder. Returns the animator the battle should drive.
-    private FighterAnimator SpawnCharacter(
+    // the placeholder. Returns the character the battle should animate; binding it
+    // here (instead of searching the scene afterwards) matters because Destroy is
+    // deferred to the end of the frame, so a search would still find the
+    // placeholder that is about to disappear.
+    private CharacterAnim SpawnCharacter(
         GameObject prefab,
         Transform anchorOverride,
-        FighterAnimator placeholderAnimator)
+        CharacterAnim placeholderCharacter)
     {
         if (prefab == null)
         {
-            return placeholderAnimator;
+            return placeholderCharacter;
         }
 
-        Transform placeholder = placeholderAnimator != null ? placeholderAnimator.transform : null;
+        Transform placeholder = placeholderCharacter != null ? placeholderCharacter.transform : null;
         Transform anchor = anchorOverride != null
             ? anchorOverride
             : placeholder != null ? placeholder.parent : null;
@@ -264,8 +265,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             Debug.LogWarning(
                 $"No anchor to spawn character prefab '{prefab.name}' under. Assign the character " +
-                "anchors or the placeholder animators on ProceduralMatchFighter.");
-            return placeholderAnimator;
+                "anchors or the side characters on ProceduralMatchFighter.");
+            return placeholderCharacter;
         }
 
         Vector3 localPosition = placeholder != null ? placeholder.localPosition : Vector3.zero;
@@ -282,13 +283,13 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         spawned.transform.SetLocalPositionAndRotation(localPosition, localRotation);
         spawned.transform.localScale = Vector3.Scale(prefab.transform.localScale, localScale);
 
-        FighterAnimator spawnedAnimator = spawned.GetComponentInChildren<FighterAnimator>();
-        if (spawnedAnimator == null)
+        CharacterAnim spawnedCharacter = spawned.GetComponentInChildren<CharacterAnim>();
+        if (spawnedCharacter == null)
         {
             Animator animator = spawned.GetComponentInChildren<Animator>();
             if (animator != null)
             {
-                spawnedAnimator = animator.gameObject.AddComponent<FighterAnimator>();
+                spawnedCharacter = GetOrAddCharacterAnim(animator);
             }
             else
             {
@@ -296,10 +297,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 // which has the sprite hierarchy but no Animator.
                 Debug.LogWarning(
                     $"Character prefab '{prefab.name}' has no Animator, so its attack animation " +
-                    "will not play. Use a prefab with an Animator + FighterAnimator on it.");
+                    "will not play. Use a prefab with an Animator + CharacterAnim on it.");
             }
         }
-        return spawnedAnimator;
+        return spawnedCharacter;
     }
 
     private void SetupBossController()
@@ -1141,8 +1142,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         hud.SetMessage(BuildResolutionMessage(acting, damage, blocked, heal, shieldGain, timeBonus, specialBursts));
         
-        if (playerTurn && playerAnimator != null) playerAnimator.TriggerAttack();
-        if (!playerTurn && enemyAnimator != null) enemyAnimator.TriggerAttack();
+        if (playerTurn && leftCharacter != null) leftCharacter.PlayAttack();
+        if (!playerTurn && rightCharacter != null) rightCharacter.PlayAttack();
 
         if (damage > 0)
         {
@@ -1243,7 +1244,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             case 0:
             {
-                if (enemyAnimator != null) enemyAnimator.TriggerAttack();
+                if (rightCharacter != null) rightCharacter.PlayAttack();
                 int attack = power + enemyAttackBonus;
                 int blocked = Mathf.Min(
                     player.Shield,
@@ -1287,7 +1288,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 if (cpu.Special >= levelConfig.specialBurstThreshold)
                 {
                     yield return enemyPanel.ShowSpecialPanel();
-                    if (enemyAnimator != null) enemyAnimator.TriggerAttack();
+                    if (rightCharacter != null) rightCharacter.PlayAttack();
                     cpu.Special -= levelConfig.specialBurstThreshold;
                     int damage = power + levelConfig.specialBurstAttackBonus + enemyAttackBonus;
                     player.Health = Mathf.Max(0, player.Health - damage);

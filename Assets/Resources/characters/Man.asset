@@ -14,4 +14,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CharacterConfig
   displayName: MAN
   cardSprite: {fileID: 4574663796395247912, guid: 65000804a131745db8753e352e456c33, type: 3}
-  characterPrefab: {fileID: 0}
+  characterPrefab: {fileID: 5882516137843292068, guid: e36cd0fa6f0fc1d4093cadd3df02b48d, type: 3}

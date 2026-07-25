@@ -14,4 +14,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CharacterConfig
   displayName: WOMAN
   cardSprite: {fileID: -1417361314930368456, guid: c4b370d80f5f149babf9ee666f8fc937, type: 3}
-  characterPrefab: {fileID: 3639735155637350948, guid: 3a13279835e46434799ea89099084fb0, type: 3}
+  characterPrefab: {fileID: 2049934401639514644, guid: ec1f22dda67cad341975856248464f84, type: 3}
