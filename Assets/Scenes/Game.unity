@@ -3536,6 +3536,7 @@ GameObject:
   - component: {fileID: 886927649}
   - component: {fileID: 886927648}
   - component: {fileID: 886927647}
+  - component: {fileID: 886927650}
   m_Layer: 5
   m_Name: Menu
   m_TagString: Untagged
@@ -3644,6 +3645,24 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 886927645}
   m_CullTransparentMesh: 1
+--- !u!114 &886927650
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 886927645}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 09fc3597f58efa74eae8434b525528f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ButtonAnimation
+  hoverScale: 1.1
+  pressScale: 0.95
+  animationDuration: 0.2
+  easeType: 2
+  enableRotation: 0
+  rotationAmount: 5
 --- !u!1 &888407247
 GameObject:
   m_ObjectHideFlags: 0
@@ -5219,6 +5238,7 @@ GameObject:
   - component: {fileID: 1284872162}
   - component: {fileID: 1284872161}
   - component: {fileID: 1284872160}
+  - component: {fileID: 1284872163}
   m_Layer: 5
   m_Name: Tryagain
   m_TagString: Untagged
@@ -5327,6 +5347,24 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1284872158}
   m_CullTransparentMesh: 1
+--- !u!114 &1284872163
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1284872158}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 09fc3597f58efa74eae8434b525528f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ButtonAnimation
+  hoverScale: 1.1
+  pressScale: 0.95
+  animationDuration: 0.2
+  easeType: 2
+  enableRotation: 0
+  rotationAmount: 5
 --- !u!1 &1295776028
 GameObject:
   m_ObjectHideFlags: 0
@@ -6209,6 +6247,7 @@ GameObject:
   - component: {fileID: 1485813912}
   - component: {fileID: 1485813911}
   - component: {fileID: 1485813910}
+  - component: {fileID: 1485813913}
   m_Layer: 5
   m_Name: Next_level
   m_TagString: Untagged
@@ -6317,6 +6356,24 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1485813908}
   m_CullTransparentMesh: 1
+--- !u!114 &1485813913
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1485813908}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 09fc3597f58efa74eae8434b525528f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ButtonAnimation
+  hoverScale: 1.1
+  pressScale: 0.95
+  animationDuration: 0.2
+  easeType: 2
+  enableRotation: 0
+  rotationAmount: 5
 --- !u!21 &1498012869
 Material:
   serializedVersion: 8
@@ -6422,7 +6479,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: -244.13742}
+  m_AnchoredPosition: {x: 0, y: -307}
   m_SizeDelta: {x: 0, y: -932.0247}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1505316369
