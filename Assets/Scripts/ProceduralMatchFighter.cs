@@ -1199,11 +1199,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             switch (bossID)
             {
-                case 1: spriteName = "specialmoveimg/sp_traitor"; break;
+                case 1: spriteName = "specialmoveimg/sp_woman"; break;
                 case 2: spriteName = "specialmoveimg/sp_general"; break;
                 case 3: spriteName = "specialmoveimg/sp_freezer"; break;
                 case 4: spriteName = "specialmoveimg/sp_tiktok"; break;
-                case 5: spriteName = "specialmoveimg/sp_woman"; break;
+                case 5: spriteName = "specialmoveimg/sp_tutor"; break;
             }
         }
         else
@@ -1279,6 +1279,28 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             UIFighterPanel actingPanel = playerTurn ? playerPanel : enemyPanel;
             Sprite specialSprite = GetSpecialSprite(acting);
             PlaySpecialSFX(acting);
+
+            if (acting == player && rightCharacter != null)
+            {
+                StartCoroutine(DelayedPlayEffect("Player_special", rightCharacter.transform, 1.5f));
+            }
+            else if (acting == cpu && isBoss && leftCharacter != null)
+            {
+                string vfxName = "";
+                switch (bossID)
+                {
+                    case 1: vfxName = "Traitor_special"; break;
+                    case 2: vfxName = "General_special"; break;
+                    case 3: vfxName = "Freezer_special"; break;
+                    case 4: vfxName = "Tiktoker_special"; break;
+                }
+                
+                if (!string.IsNullOrEmpty(vfxName))
+                {
+                    StartCoroutine(DelayedPlayEffect(vfxName, leftCharacter.transform, 1.5f));
+                }
+            }
+
             yield return actingPanel.ShowSpecialPanel(specialSprite);
 
             attack += specialBursts * levelConfig.specialBurstAttackBonus;
@@ -1374,6 +1396,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         boardBusy = false;
         BeginTurn(!playerTurn);
+    }
+
+    private IEnumerator DelayedPlayEffect(string effectName, Transform target, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        if (EffectManager.Instance != null && target != null)
+        {
+            EffectManager.Instance.PlayEffect(effectName, target.position);
+        }
     }
 
     private string BuildResolutionMessage(

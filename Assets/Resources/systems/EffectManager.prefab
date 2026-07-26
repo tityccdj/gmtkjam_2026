@@ -44,6 +44,31 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ef94975f326e64b4f81947bf93dcb55e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EffectManager
-  effects: []
+  effects:
+  - name: Player_special
+    prefab: {fileID: 2433282508537954060, guid: 3ef3ae421f71c5c4e97fe12dc2fc6312, type: 3}
+    poolSize: 0
+    autoReturnToPool: 1
+    lifetime: 0
+  - name: Freezer_special
+    prefab: {fileID: 5112403345868107898, guid: 6f34ef0d986e9db4199cf75805f79753, type: 3}
+    poolSize: 0
+    autoReturnToPool: 1
+    lifetime: 0
+  - name: Tiktoker_special
+    prefab: {fileID: 3280519133390621005, guid: a71be3e7990efb040a07565c43cbb198, type: 3}
+    poolSize: 0
+    autoReturnToPool: 1
+    lifetime: 2
+  - name: General_special
+    prefab: {fileID: 3432958286849152088, guid: 87ee7299dd44ed747af24dbb91bcd33b, type: 3}
+    poolSize: 0
+    autoReturnToPool: 1
+    lifetime: 2
+  - name: Traitor_special
+    prefab: {fileID: 2433282508537954060, guid: 3ef3ae421f71c5c4e97fe12dc2fc6312, type: 3}
+    poolSize: 0
+    autoReturnToPool: 1
+    lifetime: 0
   poolParent: {fileID: 0}
   defaultPoolSize: 10
