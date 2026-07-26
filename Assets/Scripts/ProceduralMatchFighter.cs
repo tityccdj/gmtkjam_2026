@@ -147,6 +147,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private bool boardBusy;
     private bool battleEnded;
     private float timeRemaining;
+    private int lastBeepTime = -1;
     private float cpuMoveTimer;
     private float nextNavigationTime;
     private int cursorRow;
@@ -488,6 +489,18 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
 
         timeRemaining -= Time.deltaTime;
+        if (timeRemaining > 0f && timeRemaining <= 3f)
+        {
+            int currentSecond = Mathf.CeilToInt(timeRemaining);
+            if (currentSecond != lastBeepTime && currentSecond > 0)
+            {
+                lastBeepTime = currentSecond;
+                if (AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlaySFXOneShot("SFX_beep");
+                }
+            }
+        }
         UpdateTimer();
 
         if (boardBusy)
@@ -884,6 +897,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         while (matches.Count > 0)
         {
             combo++;
+            if (AudioManager.Instance != null)
+            {
+                int comboLevel = Mathf.Clamp(combo, 1, 5);
+                AudioManager.Instance.PlaySFXOneShot($"HUD_combo_{comboLevel}");
+            }
             QueueMatches(matches, playerTurn ? player : cpu, combo);
             yield return DestroyMatches(matches);
             CollapseBoard();
@@ -1445,6 +1463,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             activeTurnDuration = bossController.ConsumePlayerTurnDuration();
         }
         timeRemaining = activeTurnDuration + storedTime;
+        lastBeepTime = -1;
         cpuMoveTimer = GetCpuInitialDelay();
         combo = 0;
         selectedOrb = null;
