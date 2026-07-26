@@ -99,6 +99,19 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private OrbView[,] board;
     private readonly Fighter player = new Fighter("PLAYER");
     private readonly Fighter cpu = new Fighter("CPU");
+    private bool timePaused;
+
+    private bool IsTutorialLevel => levelConfig != null && levelConfig.isTutorialLevel && !playerVsPlayer;
+
+    private static string TutorialOrbSeenKey(OrbType type) => $"TutorialHint_Seen_{type}";
+
+    private static bool HasSeenOrbHint(OrbType type) => PlayerPrefs.GetInt(TutorialOrbSeenKey(type), 0) == 1;
+
+    private static void MarkOrbHintSeen(OrbType type)
+    {
+        PlayerPrefs.SetInt(TutorialOrbSeenKey(type), 1);
+        PlayerPrefs.Save();
+    }
 
     [Header("Game Mode")]
     [SerializeField] private BattleGameMode gameMode = BattleGameMode.Story;
@@ -123,6 +136,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [SerializeField] private UIRoundTextPanel roundTextPanel;
     [SerializeField] private UIBattleResultSlider battleResultSlider;
     [SerializeField] private GameResultHandler gameResultHandler;
+    [SerializeField] private UITutorialHint tutorialHint;
 
     [Header("Characters")]
     // The character standing on each side. Both are swapped out for the picked
@@ -225,6 +239,25 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         FillInitialBoard();
         battleBoard.gameObject.SetActive(false);
         PrepareForInput();
+
+        if (IsTutorialLevel)
+        {
+            ShowControlHint();
+        }
+    }
+
+    private void ShowControlHint()
+    {
+        if (tutorialHint == null)
+        {
+            return;
+        }
+
+        boardBusy = true;
+        tutorialHint.Show(
+            "HOW TO PLAY",
+            "Drag a block to swap it with a neighbor. Match 3 or more of the same color to trigger its effect.",
+            () => boardBusy = false);
     }
 
     private void Start()
@@ -490,8 +523,13 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             return;
         }
 
+        if (timePaused)
+        {
+            return;
+        }
+
         timeRemaining -= Time.deltaTime;
-        
+
         blinkTimer += Time.deltaTime;
         if (blinkTimer >= 0.3f)
         {
@@ -917,7 +955,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 int comboLevel = Mathf.Clamp(combo, 1, 5);
                 AudioManager.Instance.PlaySFXOneShot($"HUD_combo_{comboLevel}");
             }
-            QueueMatches(matches, playerTurn ? player : cpu, combo);
+            HashSet<OrbType> matchedTypes = QueueMatches(matches, playerTurn ? player : cpu, combo);
+            if (IsTutorialLevel && playerTurn)
+            {
+                yield return ShowNewOrbHints(matchedTypes);
+            }
             yield return DestroyMatches(matches);
             CollapseBoard();
             yield return new WaitForSeconds(0.16f);
@@ -1034,15 +1076,18 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         return found;
     }
 
-    private void QueueMatches(HashSet<OrbView> matches, Fighter owner, int chain)
+    private HashSet<OrbType> QueueMatches(HashSet<OrbView> matches, Fighter owner, int chain)
     {
         PlayScoreAnimation(owner);
 
         int blueBlockCount = 0;
         HashSet<OrbType> matchedColors = new HashSet<OrbType>();
-        
+        HashSet<OrbType> allMatchedTypes = new HashSet<OrbType>();
+
         foreach (OrbView orb in matches)
         {
+            allMatchedTypes.Add(orb.Type);
+
             if (orb.Type == OrbType.Blue)
             {
                 blueBlockCount++;
@@ -1086,6 +1131,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             bossController.RecordPlayerMatch(blueBlockCount);
         }
         UpdateHud();
+        return allMatchedTypes;
     }
 
     private void PlayScoreAnimation(Fighter scoringFighter)
@@ -1246,6 +1292,65 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
         
         AudioManager.Instance.PlaySFXOneShot(soundName);
+    }
+
+    private IEnumerator ShowNewOrbHints(HashSet<OrbType> matchedTypes)
+    {
+        if (tutorialHint == null)
+        {
+            yield break;
+        }
+
+        foreach (OrbType type in matchedTypes)
+        {
+            if (HasSeenOrbHint(type))
+            {
+                continue;
+            }
+
+            MarkOrbHintSeen(type);
+
+            timePaused = true;
+            bool dismissed = false;
+            tutorialHint.Show(
+                OrbHintTitle(type),
+                OrbHintBody(type),
+                () => dismissed = true);
+            yield return new WaitUntil(() => dismissed);
+            timePaused = false;
+        }
+    }
+
+    private static string OrbHintTitle(OrbType type)
+    {
+        switch (type)
+        {
+            case OrbType.Red: return "RED = ATTACK";
+            case OrbType.Blue: return "BLUE = TIME";
+            case OrbType.Green: return "GREEN = HEAL";
+            case OrbType.Yellow: return "YELLOW = SHIELD";
+            case OrbType.Purple: return "PURPLE = SPECIAL";
+            default: return string.Empty;
+        }
+    }
+
+    private string OrbHintBody(OrbType type)
+    {
+        switch (type)
+        {
+            case OrbType.Red:
+                return $"Matching red blocks deals damage to your enemy. Each red orb adds {levelConfig.attackPerOrb} damage when your turn resolves.";
+            case OrbType.Blue:
+                return $"Matching blue blocks banks extra time for your next turn. Each blue orb adds {levelConfig.timePerBlueOrb:0.#}s.";
+            case OrbType.Green:
+                return $"Matching green blocks heals you. Each green orb restores {levelConfig.healPerOrb} HP when your turn resolves.";
+            case OrbType.Yellow:
+                return $"Matching yellow blocks builds a shield. Each yellow orb adds {levelConfig.shieldPerOrb} shield, blocking part of the next hit you take.";
+            case OrbType.Purple:
+                return $"Matching purple blocks charges your special. Each purple orb adds {levelConfig.specialPerOrb} charge - fill {levelConfig.specialBurstThreshold} to unleash a bonus attack.";
+            default:
+                return string.Empty;
+        }
     }
 
     private IEnumerator EndTurn()

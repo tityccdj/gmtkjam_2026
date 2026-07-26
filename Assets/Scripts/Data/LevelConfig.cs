@@ -50,4 +50,9 @@ public class LevelConfig : ScriptableObject
     [Header("Environment")]
     public Sprite backgroundSprite;
     public Sprite thumbnail;
+
+    [Header("Tutorial")]
+    // Shows contextual in-battle hints (controls + first-seen orb explanations)
+    // for as long as this level is played. Only intended for the onboarding level.
+    public bool isTutorialLevel;
 }
