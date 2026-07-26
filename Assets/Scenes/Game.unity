@@ -8791,6 +8791,12 @@ MonoBehaviour:
   bossController: {fileID: 0}
   levelConfig: {fileID: 11400000, guid: 6448dc3c688e04d0daf8fd668cac3822, type: 2}
   background: {fileID: 213697072}
+  freePlayEnemyRoster:
+  - {fileID: 11400000, guid: 3816cc99348854a2fba6801b5d31e098, type: 2}
+  - {fileID: 11400000, guid: affa89f38501b44fdba2398bc50c9f6e, type: 2}
+  - {fileID: 11400000, guid: 3a409d32c88874f9684917be0442953b, type: 2}
+  - {fileID: 11400000, guid: 7fc01880c2ab54a6188fa21a51ee0cd5, type: 2}
+  - {fileID: 11400000, guid: 6448dc3c688e04d0daf8fd668cac3822, type: 2}
   hud: {fileID: 943200722}
   battleBoard: {fileID: 888407249}
   playerPanel: {fileID: 495929141}

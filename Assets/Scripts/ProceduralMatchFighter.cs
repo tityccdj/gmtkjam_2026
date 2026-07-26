@@ -101,7 +101,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private readonly Fighter cpu = new Fighter("CPU");
     private bool timePaused;
 
-    private bool IsTutorialLevel => levelConfig != null && levelConfig.isTutorialLevel && !playerVsPlayer;
+    private bool IsTutorialLevel =>
+        levelConfig != null &&
+        levelConfig.isTutorialLevel &&
+        !playerVsPlayer &&
+        gameMode == BattleGameMode.Story;
 
     private static string TutorialOrbSeenKey(OrbType type) => $"TutorialHint_Seen_{type}";
 
@@ -127,6 +131,13 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [Header("Level")]
     [SerializeField] private LevelConfig levelConfig;
     [SerializeField] private SpriteRenderer background;
+
+    [Header("Free Play")]
+    // Cosmetic-only roster: each kill re-rolls the enemy's look/name from one of
+    // these LevelConfigs, but free play's own balance numbers (this component's
+    // levelConfig/enemyDifficulty/enemyAttackBonus) stay fixed - only
+    // enemyName/enemyCharacterPrefab are borrowed from the picked entry.
+    [SerializeField] private LevelConfig[] freePlayEnemyRoster;
 
     [Header("UI")]
     [SerializeField] private UIBattleHud hud;
@@ -220,6 +231,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             : bossController != null && bossController.IsActive
                 ? bossController.DisplayName
                 : levelConfig.enemyName;
+        if (IsFreePlay)
+        {
+            PickRandomFreePlayEnemyLook();
+        }
         if (playerVsPlayer)
         {
             player.Name = "PLAYER 1";
@@ -1628,7 +1643,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         killScore++;
         enemyAttackBonus += 2;
-        cpu.Name = $"ENEMY #{killScore + 1}";
+        PickRandomFreePlayEnemyLook();
         cpu.Health = bossHealthCap;
         cpu.Shield = 0;
         cpu.Special = 0;
@@ -1636,6 +1651,33 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         Array.Clear(cpu.Pending, 0, cpu.Pending.Length);
         hud.SetMessage($"ENEMY DEFEATED!  KILL SCORE: {killScore}");
         UpdateHud();
+    }
+
+    // Cosmetic re-roll only: swaps the enemy's sprite/name from the free play
+    // roster. Does not touch levelConfig/enemyDifficulty/bossController, so free
+    // play balance stays constant regardless of which look gets picked.
+    private void PickRandomFreePlayEnemyLook()
+    {
+        if (freePlayEnemyRoster == null || freePlayEnemyRoster.Length == 0)
+        {
+            cpu.Name = $"ENEMY #{killScore + 1}";
+            return;
+        }
+
+        LevelConfig picked = freePlayEnemyRoster[UnityEngine.Random.Range(0, freePlayEnemyRoster.Length)];
+        if (picked == null || picked.enemyCharacterPrefab == null)
+        {
+            cpu.Name = $"ENEMY #{killScore + 1}";
+            return;
+        }
+
+        rightCharacter = SpawnCharacter(picked.enemyCharacterPrefab, enemyCharacterAnchor, rightCharacter);
+        cpu.Name = $"{picked.enemyName} #{killScore + 1}";
+
+        if (background != null && picked.backgroundSprite != null)
+        {
+            background.sprite = picked.backgroundSprite;
+        }
     }
 
     private void BeginTurn(bool isPlayer)
@@ -1693,7 +1735,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                     : "CPU is planning...");
         string hook =
             IsFreePlay
-                ? $"KILLS {killScore}  |  ENEMY BONUS ATK +{enemyAttackBonus}"
+                ? $"KILLS {killScore}  |  BEST {FreePlayHighScore.Get()}  |  ENEMY BONUS ATK +{enemyAttackBonus}"
                 : isPlayer
                 ? "RACE AGAINST TIME. MATCH WISELY. SURVIVE THE COUNTDOWN."
                 : "EVERY 10 SECONDS, DESTINY IS DECIDED.";
@@ -1716,6 +1758,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         boardBusy = true;
         RefreshSelectionFrames();
         bool playerOneWon = winner == player;
+        bool isNewFreePlayBest = IsFreePlay && FreePlayHighScore.TrySetNewHighScore(killScore);
 
         if (playerOneWon && !playerVsPlayer && !IsFreePlay)
         {
@@ -1742,7 +1785,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             !string.IsNullOrEmpty(overrideMessage)
                 ? overrideMessage
                 : IsFreePlay
-                ? $"SURVIVED {killScore} KILLS"
+                ? $"SURVIVED {killScore} KILLS  |  BEST {FreePlayHighScore.Get()}" +
+                    (isNewFreePlayBest ? "  NEW BEST!" : "")
                 : playerVsPlayer
                 ? $"{winner.Name} decided destiny."
                 : playerOneWon
