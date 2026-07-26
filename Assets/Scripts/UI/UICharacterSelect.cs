@@ -39,6 +39,7 @@ public class UICharacterSelect : MonoBehaviour
 
     public void Setup(Param param)
     {
+        backButton.AddClickSound();
         backButton.onClick.AddListener(() => param.onBack?.Invoke());
         PopulateCharacters(param.onCharacterSelected);
     }
@@ -81,8 +82,9 @@ public class UICharacterSelect : MonoBehaviour
                 nameText.text = character.displayName;
             }
 
-            card.GetComponent<Button>().onClick.AddListener(
-                () => onCharacterSelected?.Invoke(character, index));
+            Button btn = card.GetComponent<Button>();
+            btn.AddClickSound();
+            btn.onClick.AddListener(() => onCharacterSelected?.Invoke(character, index));
         }
     }
 

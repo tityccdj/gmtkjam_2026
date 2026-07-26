@@ -14,6 +14,7 @@ public class UITutorial : MonoBehaviour
     
     public void Setup(Param param)
     {
+        backButton.AddClickSound();
         backButton.onClick.AddListener(() => param.OnBack?.Invoke());
     }
 }

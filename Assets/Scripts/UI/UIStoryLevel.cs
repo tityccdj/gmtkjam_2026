@@ -27,6 +27,7 @@ public class UIStoryLevel : MonoBehaviour
 
     public void Setup(Param param)
     {
+        backButton.AddClickSound();
         backButton.onClick.AddListener(() => param.onBack?.Invoke());
         PopulateLevels(param.onLevelSelected);
     }
@@ -56,6 +57,7 @@ public class UIStoryLevel : MonoBehaviour
             button.interactable = unlocked;
             if (unlocked)
             {
+                button.AddClickSound();
                 button.onClick.AddListener(() => onLevelSelected?.Invoke(level, index));
             }
         }

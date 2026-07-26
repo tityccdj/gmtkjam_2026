@@ -27,8 +27,11 @@ public class UIMainMenu : MonoBehaviour
 
     public void Setup(Param param)
     {
+        playButton.AddClickSound();
         playButton.onClick.AddListener(() => param.onPlay?.Invoke());
+        settingButton.AddClickSound();
         settingButton.onClick.AddListener(() => param.onSetting?.Invoke());
+        tutorialButton.AddClickSound();
         tutorialButton.onClick.AddListener(() => param.onTutorial?.Invoke());
         versionText.text = $"V {param.version}";
     }

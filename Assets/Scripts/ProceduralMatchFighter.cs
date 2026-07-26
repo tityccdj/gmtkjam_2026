@@ -224,6 +224,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         PrepareForInput();
     }
 
+    private void Start()
+    {
+        if (AudioManager.Instance != null)
+        {
+            // ปรับตัวเลข 0.5f ลงได้อีกถ้ายังดังไป (เช่น 0.3f, 0.2f)
+            AudioManager.Instance.PlayMusic("BGM_gameplay", volumeMultiplier: 0.5f, loop: true, fadeIn: true);
+        }
+    }
+
     // Swaps the characters placed in the scene for the ones that were picked.
     // The player side comes from the Title character selection; the enemy side
     // is either the auto-picked opponent (versus / free play) or whatever the
@@ -849,6 +858,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         boardBusy = true;
         RefreshSelectionFrames();
         SwapTypes(first, second);
+        
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFXWithPitchVariation("SFX_slide", 0.15f);
+        }
+
         yield return AnimateSwap(first, second);
 
         HashSet<OrbView> matches = FindMatches();
@@ -1024,6 +1039,33 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private IEnumerator DestroyMatches(HashSet<OrbView> matches)
     {
+        if (AudioManager.Instance != null && matches != null && matches.Count > 0)
+        {
+            HashSet<OrbType> matchedTypes = new HashSet<OrbType>();
+            foreach (OrbView orb in matches)
+            {
+                matchedTypes.Add(orb.Type);
+            }
+
+            foreach (OrbType type in matchedTypes)
+            {
+                string soundName = "";
+                switch (type)
+                {
+                    case OrbType.Red: soundName = "SFX_bomb_red"; break;
+                    case OrbType.Blue: soundName = "SFX_bomb_blue"; break;
+                    case OrbType.Green: soundName = "SFX_bomb_green"; break;
+                    case OrbType.Yellow: soundName = "SFX_bomb_yellow"; break;
+                    case OrbType.Purple: soundName = "SFX_bomb_purple"; break;
+                }
+
+                if (!string.IsNullOrEmpty(soundName))
+                {
+                    AudioManager.Instance.PlaySFXWithPitchVariation(soundName, 0.15f);
+                }
+            }
+        }
+
         float elapsed = 0f;
         while (elapsed < 0.18f)
         {
@@ -1127,6 +1169,27 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         return Resources.Load<Sprite>(spriteName);
     }
 
+    private void PlaySpecialSFX(Fighter fighter)
+    {
+        if (AudioManager.Instance == null) return;
+        
+        string soundName = "HUD_special_player";
+        
+        if (fighter == cpu && isBoss)
+        {
+            switch (bossID)
+            {
+                case 1: soundName = "HUD_special_boss_lv1"; break;
+                case 2: soundName = "HUD_special_boss_lv2"; break;
+                case 3: soundName = "HUD_special_boss_lv3"; break;
+                case 4: soundName = "HUD_special_boss_lv4"; break;
+                // Entry gate (case 5) falls back to HUD_special_player
+            }
+        }
+        
+        AudioManager.Instance.PlaySFXOneShot(soundName);
+    }
+
     private IEnumerator EndTurn()
     {
         boardBusy = true;
@@ -1157,6 +1220,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             UIFighterPanel actingPanel = playerTurn ? playerPanel : enemyPanel;
             Sprite specialSprite = GetSpecialSprite(acting);
+            PlaySpecialSFX(acting);
             yield return actingPanel.ShowSpecialPanel(specialSprite);
 
             attack += specialBursts * levelConfig.specialBurstAttackBonus;
@@ -1331,6 +1395,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 if (cpu.Special >= levelConfig.specialBurstThreshold)
                 {
                     Sprite specialSprite = GetSpecialSprite(cpu);
+                    PlaySpecialSFX(cpu);
                     yield return enemyPanel.ShowSpecialPanel(specialSprite);
                     if (rightCharacter != null) rightCharacter.PlayAttack();
                     cpu.Special -= levelConfig.specialBurstThreshold;
@@ -1473,6 +1538,20 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                     ? "Destiny favors you."
                     : "The CPU decided your fate.");
         hud.SetHook("Press R / GAMEPAD NORTH to restart");
+
+        if (AudioManager.Instance != null)
+        {
+            if (playerOneWon)
+            {
+                AudioManager.Instance.StopMusic(fadeOut: true);
+                AudioManager.Instance.PlaySFXOneShot("HUD_win");
+            }
+            else
+            {
+                AudioManager.Instance.StopMusic(fadeOut: true);
+                AudioManager.Instance.PlaySFXOneShot("HUD_lose");
+            }
+        }
 
         if (gameResultHandler != null)
         {

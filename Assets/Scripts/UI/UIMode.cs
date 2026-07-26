@@ -25,9 +25,13 @@ public class UIMode : MonoBehaviour
 
     public void Setup(Param param)
     {
+        storyModeButton.AddClickSound();
         storyModeButton.onClick.AddListener(() => param.onStoryMode?.Invoke());
+        localVersusButton.AddClickSound();
         localVersusButton.onClick.AddListener(() => param.onLocalVersus?.Invoke());
+        freeplayButton.AddClickSound();
         freeplayButton.onClick.AddListener(() => param.onFreeplay?.Invoke());
+        backButton.AddClickSound();
         backButton.onClick.AddListener(() => param.onBack?.Invoke());
     }
 

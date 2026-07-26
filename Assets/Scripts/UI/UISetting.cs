@@ -33,6 +33,7 @@ public class UISetting : MonoBehaviour
         mainVolumeSlider.onValueChanged.AddListener(value => param.onMainVolumeChanged?.Invoke(value));
         bgmVolumeSlider.onValueChanged.AddListener(value => param.onBgmVolumeChanged?.Invoke(value));
         sfxVolumeSlider.onValueChanged.AddListener(value => param.onSfxVolumeChanged?.Invoke(value));
+        backButton.AddClickSound();
         backButton.onClick.AddListener(() => param.onBack?.Invoke());
     }
 }

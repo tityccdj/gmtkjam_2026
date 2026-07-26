@@ -31,6 +31,7 @@ public class UIGameResult : MonoBehaviour
         // ผูก Action ให้กับปุ่ม
         if (nextLevelButton != null)
         {
+            nextLevelButton.AddClickSound();
             nextLevelButton.onClick.AddListener(() => param.onNextLevel?.Invoke());
             // แสดงปุ่ม Next Level เฉพาะเมื่อมีการส่ง Action มา (ถ้าแพ้เกมจะไม่มีปุ่ม Next Level)
             nextLevelButton.gameObject.SetActive(param.onNextLevel != null);
@@ -38,12 +39,14 @@ public class UIGameResult : MonoBehaviour
 
         if (tryAgainButton != null)
         {
+            tryAgainButton.AddClickSound();
             tryAgainButton.onClick.AddListener(() => param.onTryAgain?.Invoke());
             tryAgainButton.gameObject.SetActive(param.onTryAgain != null);
         }
 
         if (mainMenuButton != null)
         {
+            mainMenuButton.AddClickSound();
             mainMenuButton.onClick.AddListener(() => param.onMainMenu?.Invoke());
             mainMenuButton.gameObject.SetActive(param.onMainMenu != null);
         }
