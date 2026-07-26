@@ -37,7 +37,7 @@ public class Title : MonoBehaviour
         {
             onPlay = () => uiMainMenu.SlideOut(() => uiMode.SlideIn()),
             onSetting = () => uiMainMenu.SlideOut(() => uiSetting.gameObject.SetActive(true)),
-            onTutorial = () => uiMainMenu.SlideOut(() => uiTutorial.gameObject.SetActive(true)),
+            onTutorial = () => uiTutorial.gameObject.SetActive(true),
             onExit = () => Application.Quit(),
             version = Application.version,
         });
@@ -114,7 +114,7 @@ public class Title : MonoBehaviour
             OnBack = () =>
             {
                 uiTutorial.gameObject.SetActive(false);
-                uiMainMenu.SlideIn();
+                uiMainMenu.gameObject.SetActive(true);
             }
         });
         uiSetting.gameObject.SetActive(false);
