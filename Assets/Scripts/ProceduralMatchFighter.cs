@@ -1559,13 +1559,16 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private IEnumerator ResolveFreePlayEnemyAction()
     {
-        int action = UnityEngine.Random.Range(0, 4);
+        // Weighted so the enemy attacks most of the time instead of spending as
+        // many turns healing/buffing/charging as attacking.
+        int roll = UnityEngine.Random.Range(0, 8);
+        int action = roll < 5 ? 0 : roll - 4;
         int power;
         switch (enemyDifficulty)
         {
-            case EnemyDifficulty.Easy: power = 6; break;
-            case EnemyDifficulty.Hard: power = 15; break;
-            default: power = 10; break;
+            case EnemyDifficulty.Easy: power = 8; break;
+            case EnemyDifficulty.Hard: power = 20; break;
+            default: power = 14; break;
         }
 
         switch (action)
@@ -1642,13 +1645,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private void RegisterFreePlayKill()
     {
         killScore++;
-        enemyAttackBonus += 2;
+        enemyAttackBonus += 5;
         PickRandomFreePlayEnemyLook();
         cpu.Health = bossHealthCap;
         cpu.Shield = 0;
         cpu.Special = 0;
         cpu.StoredTime = 0;
         Array.Clear(cpu.Pending, 0, cpu.Pending.Length);
+        player.Health = levelConfig.healthCap;
+        player.StoredTime = 0;
         hud.SetMessage($"ENEMY DEFEATED!  KILL SCORE: {killScore}");
         UpdateHud();
     }
