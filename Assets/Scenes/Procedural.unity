@@ -5627,7 +5627,7 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2088603436}
   m_CullTransparentMesh: 1
---- !u!1001 &3717254355742886010
+--- !u!1001 &2499109767001712576
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -5637,11 +5637,11 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 4713857683204976583, guid: e36cd0fa6f0fc1d4093cadd3df02b48d, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 7.3
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4713857683204976583, guid: e36cd0fa6f0fc1d4093cadd3df02b48d, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -1.3
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4713857683204976583, guid: e36cd0fa6f0fc1d4093cadd3df02b48d, type: 3}
       propertyPath: m_LocalPosition.z
@@ -5649,7 +5649,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4713857683204976583, guid: e36cd0fa6f0fc1d4093cadd3df02b48d, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 4713857683204976583, guid: e36cd0fa6f0fc1d4093cadd3df02b48d, type: 3}
       propertyPath: m_LocalRotation.x
@@ -5657,7 +5657,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4713857683204976583, guid: e36cd0fa6f0fc1d4093cadd3df02b48d, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4713857683204976583, guid: e36cd0fa6f0fc1d4093cadd3df02b48d, type: 3}
       propertyPath: m_LocalRotation.z
@@ -5669,7 +5669,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4713857683204976583, guid: e36cd0fa6f0fc1d4093cadd3df02b48d, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 180
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4713857683204976583, guid: e36cd0fa6f0fc1d4093cadd3df02b48d, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
@@ -5783,4 +5783,4 @@ SceneRoots:
   - {fileID: 943200726}
   - {fileID: 752234468}
   - {fileID: 5282648683439416966}
-  - {fileID: 3717254355742886010}
+  - {fileID: 2499109767001712576}
