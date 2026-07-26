@@ -27,7 +27,7 @@ MonoBehaviour:
   shieldPerOrb: 1
   specialPerOrb: 1
   enemyName: The Traitor
-  enemyCharacterPrefab: {fileID: 0}
+  enemyCharacterPrefab: {fileID: 44095411014334069, guid: 6e6bad3d3d1ea56478c56712a9f29a15, type: 3}
   redWeight: 8
   blueWeight: 1
   greenWeight: 2

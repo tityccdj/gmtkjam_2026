@@ -27,7 +27,7 @@ MonoBehaviour:
   shieldPerOrb: 2
   specialPerOrb: 2
   enemyName: Tiktoker
-  enemyCharacterPrefab: {fileID: 0}
+  enemyCharacterPrefab: {fileID: 2754490489846817966, guid: d0334ed9b73e60a4f8fdab31761c1a0d, type: 3}
   redWeight: 3
   blueWeight: 2
   greenWeight: 2

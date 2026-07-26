@@ -27,7 +27,7 @@ MonoBehaviour:
   shieldPerOrb: 1
   specialPerOrb: 1
   enemyName: Freezer
-  enemyCharacterPrefab: {fileID: 0}
+  enemyCharacterPrefab: {fileID: 8498117339880475952, guid: f52f5aa04ffa84444853a16ba2bf3e0c, type: 3}
   redWeight: 5
   blueWeight: 1
   greenWeight: 1

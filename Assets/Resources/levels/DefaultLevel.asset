@@ -27,7 +27,7 @@ MonoBehaviour:
   shieldPerOrb: 2
   specialPerOrb: 2
   enemyName: Entry Gate
-  enemyCharacterPrefab: {fileID: 2049934401639514644, guid: ec1f22dda67cad341975856248464f84, type: 3}
+  enemyCharacterPrefab: {fileID: 2049934401639514644, guid: 4c8f0943e5837a845a048d08ff66d9bb, type: 3}
   redWeight: 2
   blueWeight: 3
   greenWeight: 2

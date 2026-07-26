@@ -27,7 +27,7 @@ MonoBehaviour:
   shieldPerOrb: 1
   specialPerOrb: 1
   enemyName: General
-  enemyCharacterPrefab: {fileID: 0}
+  enemyCharacterPrefab: {fileID: 4639024304559554806, guid: a6df02319e231c44cb6f4a12f92556f7, type: 3}
   redWeight: 7
   blueWeight: 1
   greenWeight: 1
