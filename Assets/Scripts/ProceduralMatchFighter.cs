@@ -122,6 +122,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     [SerializeField] private UIFighterPanel enemyPanel;
     [SerializeField] private UIRoundTextPanel roundTextPanel;
     [SerializeField] private UIBattleResultSlider battleResultSlider;
+    [SerializeField] private GameResultHandler gameResultHandler;
 
     [Header("Characters")]
     // The character standing on each side. Both are swapped out for the picked
@@ -1435,7 +1436,14 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                     : "The CPU decided your fate.");
         hud.SetHook("Press R / GAMEPAD NORTH to restart");
 
-        StartCoroutine(RestartListener());
+        if (gameResultHandler != null)
+        {
+            gameResultHandler.ShowResult(playerOneWon);
+        }
+        else
+        {
+            StartCoroutine(RestartListener());
+        }
     }
 
     private static void UnlockNextStoryLevel()
