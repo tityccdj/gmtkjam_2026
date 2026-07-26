@@ -1091,6 +1091,42 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
     }
 
+    private Sprite GetSpecialSprite(Fighter fighter)
+    {
+        string spriteName = "specialmoveimg/sp_man"; // ค่าเริ่มต้นเป็น man
+        
+        if (fighter == cpu && isBoss)
+        {
+            switch (bossID)
+            {
+                case 1: spriteName = "specialmoveimg/sp_traitor"; break;
+                case 2: spriteName = "specialmoveimg/sp_general"; break;
+                case 3: spriteName = "specialmoveimg/sp_freezer"; break;
+                case 4: spriteName = "specialmoveimg/sp_tiktok"; break;
+                case 5: spriteName = "specialmoveimg/sp_woman"; break;
+            }
+        }
+        else
+        {
+            CharacterConfig config = (fighter == player) ? LevelSelection.PlayerCharacter : LevelSelection.OpponentCharacter;
+            if (config != null)
+            {
+                string nameLower = config.displayName.ToLower();
+                
+                if (nameLower.Contains("woman"))
+                {
+                    spriteName = "specialmoveimg/sp_woman"; 
+                }
+                else if (nameLower.Contains("man"))
+                {
+                    spriteName = "specialmoveimg/sp_man";
+                }
+            }
+        }
+        
+        return Resources.Load<Sprite>(spriteName);
+    }
+
     private IEnumerator EndTurn()
     {
         boardBusy = true;
@@ -1120,7 +1156,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         if (specialBursts > 0)
         {
             UIFighterPanel actingPanel = playerTurn ? playerPanel : enemyPanel;
-            yield return actingPanel.ShowSpecialPanel();
+            Sprite specialSprite = GetSpecialSprite(acting);
+            yield return actingPanel.ShowSpecialPanel(specialSprite);
 
             attack += specialBursts * levelConfig.specialBurstAttackBonus;
             acting.Special %= levelConfig.specialBurstThreshold;
@@ -1293,7 +1330,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 cpu.Special += specialGain;
                 if (cpu.Special >= levelConfig.specialBurstThreshold)
                 {
-                    yield return enemyPanel.ShowSpecialPanel();
+                    Sprite specialSprite = GetSpecialSprite(cpu);
+                    yield return enemyPanel.ShowSpecialPanel(specialSprite);
                     if (rightCharacter != null) rightCharacter.PlayAttack();
                     cpu.Special -= levelConfig.specialBurstThreshold;
                     int damage = power + levelConfig.specialBurstAttackBonus + enemyAttackBonus;

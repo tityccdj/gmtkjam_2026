@@ -17,6 +17,8 @@ public class UIFighterPanel : MonoBehaviour
     private SpriteRenderer arenaSprite;
     [SerializeField]
     private GameObject specialPanel;
+    [SerializeField]
+    private Image specialImage;
 
     public void SetName(string text)
     {
@@ -134,10 +136,15 @@ public class UIFighterPanel : MonoBehaviour
         arenaSprite.color = original;
     }
 
-    public IEnumerator ShowSpecialPanel()
+    public IEnumerator ShowSpecialPanel(Sprite specialSprite = null)
     {
         if (specialPanel != null)
         {
+            if (specialImage != null && specialSprite != null)
+            {
+                specialImage.sprite = specialSprite;
+            }
+            
             Transform panelTransform = specialPanel.transform;
             panelTransform.localScale = Vector3.zero;
             specialPanel.SetActive(true);
