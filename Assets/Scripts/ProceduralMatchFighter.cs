@@ -1404,6 +1404,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         if (EffectManager.Instance != null && target != null)
         {
             EffectManager.Instance.PlayEffect(effectName, target.position);
+            AudioManager.Instance.PlaySFXOneShot("HUD_combo_5");
         }
     }
 
