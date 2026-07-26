@@ -444,11 +444,11 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         switch (enemyDifficulty)
         {
             case EnemyDifficulty.Easy:
-                return UnityEngine.Random.Range(4, 6);
+                return 5;
             case EnemyDifficulty.Hard:
-                return UnityEngine.Random.Range(9, 13);
+                return 8;
             default:
-                return UnityEngine.Random.Range(6, 9);
+                return 6;
         }
     }
 

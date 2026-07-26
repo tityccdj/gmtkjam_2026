@@ -18,10 +18,10 @@ MonoBehaviour:
   turnDuration: 10
   healthCap: 110
   timePerBlueOrb: 1
-  shieldCap: 30
+  shieldCap: 55
   specialBurstThreshold: 12
   specialBurstAttackBonus: 18
-  shieldBlockRatio: 0.7
+  shieldBlockRatio: 0.75
   attackPerOrb: 4
   healPerOrb: 2
   shieldPerOrb: 1
@@ -37,5 +37,5 @@ MonoBehaviour:
   lowHealthGreenWeight: 6
   lowShieldThreshold: 15
   lowShieldYellowWeight: 4
-  backgroundSprite: {fileID: -1499577077096896584, guid: 0886ce33043c3f8428adf7b62b5faeb8, type: 3}
+  backgroundSprite: {fileID: -8518238252689131076, guid: 98c91f9e5526ee949830b0a48d560cae, type: 3}
   thumbnail: {fileID: 21300000, guid: 5f909f2ee4e43d14891206f1ba99847c, type: 3}

@@ -18,16 +18,16 @@ MonoBehaviour:
   turnDuration: 10
   healthCap: 100
   timePerBlueOrb: 1.5
-  shieldCap: 40
+  shieldCap: 50
   specialBurstThreshold: 8
   specialBurstAttackBonus: 20
-  shieldBlockRatio: 0.85
+  shieldBlockRatio: 0.75
   attackPerOrb: 6
   healPerOrb: 4
   shieldPerOrb: 2
   specialPerOrb: 2
-  enemyName: Entry Gate
-  enemyCharacterPrefab: {fileID: 2049934401639514644, guid: 4c8f0943e5837a845a048d08ff66d9bb, type: 3}
+  enemyName: Tutor
+  enemyCharacterPrefab: {fileID: 2754490489846817966, guid: d0334ed9b73e60a4f8fdab31761c1a0d, type: 3}
   redWeight: 2
   blueWeight: 3
   greenWeight: 2
@@ -38,4 +38,4 @@ MonoBehaviour:
   lowShieldThreshold: 8
   lowShieldYellowWeight: 2
   backgroundSprite: {fileID: -1499577077096896584, guid: 0886ce33043c3f8428adf7b62b5faeb8, type: 3}
-  thumbnail: {fileID: 21300000, guid: c4ea25072a9139b42b723c4c46294443, type: 3}
+  thumbnail: {fileID: 21300000, guid: 0cf3199ea289fa24b8de99461748e167, type: 3}
