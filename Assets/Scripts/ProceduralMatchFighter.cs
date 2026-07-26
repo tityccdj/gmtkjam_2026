@@ -1253,6 +1253,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private IEnumerator EndTurn()
     {
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFXOneShot("SFX_Timeout");
+        }
         boardBusy = true;
         RefreshSelectionFrames();
         timeRemaining = 0f;
@@ -1337,6 +1341,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         if (damage > 0)
         {
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySFXOneShot("SFX_hit");
+            }
             UIFighterPanel hitPanel = target == player ? playerPanel : enemyPanel;
             yield return hitPanel.Flash(new Color(1f, 0.14f, 0.12f));
         }
