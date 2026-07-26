@@ -700,7 +700,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             selectedOrb = orb;
             RefreshSelectionFrames();
-            hud.SetMessage("Selected - move to an adjacent orb and press Action");
+            hud.SetMessage("");
             return;
         }
 
@@ -734,9 +734,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         timeRemaining = turnDuration;
         hud.SetTurn("READY?", new Color(1f, 0.88f, 0.35f));
         hud.SetTimer(Mathf.CeilToInt(turnDuration).ToString(), Color.white, false);
-        hud.SetMessage(playerVsPlayer
-            ? "PRESS P1 ENTER / P2 0 / GAMEPAD A"
-            : "PRESS ENTER / GAMEPAD A");
+        hud.SetMessage("PRESS ENTER TO START");
         hud.SetHook(playerVsPlayer
             ? "P1: WASD + ENTER    P2: 1 2 3 5 + 0"
             : IsFreePlay
@@ -808,7 +806,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private static bool AnyStartPressed()
     {
-        return SubmitPressed(0) || SubmitPressed(1);
+#if ENABLE_INPUT_SYSTEM
+        return Keyboard.current != null && 
+               (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.numpadEnterKey.wasPressedThisFrame);
+#else
+        return Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
+#endif
     }
 
     private static bool SubmitPressed(int humanIndex)
@@ -1355,6 +1358,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private IEnumerator EndTurn()
     {
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFXOneShot("SFX_Timeout");
+        }
         boardBusy = true;
         RefreshSelectionFrames();
         timeRemaining = 0f;
@@ -1439,6 +1446,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
         if (damage > 0)
         {
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySFXOneShot("SFX_hit");
+            }
             UIFighterPanel hitPanel = target == player ? playerPanel : enemyPanel;
             yield return hitPanel.Flash(new Color(1f, 0.14f, 0.12f));
         }
@@ -1630,6 +1641,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private void BeginTurn(bool isPlayer)
     {
         playerTurn = isPlayer;
+        if (isPlayer && AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFXOneShot("SFX_startturn");
+        }
         Fighter activeFighter = isPlayer ? player : cpu;
         int storedTime = activeFighter.StoredTime;
         activeFighter.StoredTime = 0;
@@ -2376,7 +2391,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private void RefreshOrb(OrbView orb)
     {
         orb.Image.sprite = orbSprites[(int)orb.Type];
-        orb.Image.color = Color.white;
+        orb.Image.color = orb.LockedPlayerTurns > 0 ? new Color(0.5f, 0.8f, 1f, 1f) : Color.white;
         orb.Rect.localScale = Vector3.one;
     }
 }
