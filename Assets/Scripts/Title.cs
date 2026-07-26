@@ -24,6 +24,8 @@ public class Title : MonoBehaviour
     private UICharacterSelect uiCharacterSelect;
     [SerializeField]
     private UIStoryLevel uiStoryLevel;
+    [SerializeField]
+    private UIStoryIntro uiStoryIntro;
 
     private CharacterSelectFlow characterSelectFlow;
 
@@ -82,7 +84,15 @@ public class Title : MonoBehaviour
                 LevelSelection.AllLevels = uiStoryLevel.Levels;
                 LevelSelection.PlayerVsPlayer = false;
                 LevelSelection.GameMode = ProceduralMatchFighter.BattleGameMode.Story;
-                SceneLoader.Instance.LoadScene(gameScene);
+                
+                if (index == 0 && uiStoryIntro != null)
+                {
+                    uiStoryIntro.Show(() => SceneLoader.Instance.LoadScene(gameScene));
+                }
+                else
+                {
+                    SceneLoader.Instance.LoadScene(gameScene);
+                }
             },
         });
         uiSetting.Setup(new UISetting.Param
