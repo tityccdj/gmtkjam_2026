@@ -662,7 +662,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         {
             selectedOrb = orb;
             RefreshSelectionFrames();
-            hud.SetMessage("Selected - move to an adjacent orb and press Action");
+            hud.SetMessage("");
             return;
         }
 
@@ -696,9 +696,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         timeRemaining = turnDuration;
         hud.SetTurn("READY?", new Color(1f, 0.88f, 0.35f));
         hud.SetTimer(Mathf.CeilToInt(turnDuration).ToString(), Color.white, false);
-        hud.SetMessage(playerVsPlayer
-            ? "PRESS P1 ENTER / P2 0 / GAMEPAD A"
-            : "PRESS ENTER / GAMEPAD A");
+        hud.SetMessage("PRESS ENTER TO START");
         hud.SetHook(playerVsPlayer
             ? "P1: WASD + ENTER    P2: 1 2 3 5 + 0"
             : IsFreePlay
@@ -770,7 +768,12 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
 
     private static bool AnyStartPressed()
     {
-        return SubmitPressed(0) || SubmitPressed(1);
+#if ENABLE_INPUT_SYSTEM
+        return Keyboard.current != null && 
+               (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.numpadEnterKey.wasPressedThisFrame);
+#else
+        return Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
+#endif
     }
 
     private static bool SubmitPressed(int humanIndex)
@@ -1525,6 +1528,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private void BeginTurn(bool isPlayer)
     {
         playerTurn = isPlayer;
+        if (isPlayer && AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFXOneShot("SFX_startturn");
+        }
         Fighter activeFighter = isPlayer ? player : cpu;
         int storedTime = activeFighter.StoredTime;
         activeFighter.StoredTime = 0;

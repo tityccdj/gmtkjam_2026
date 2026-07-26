@@ -85,6 +85,11 @@ public class UIStoryIntro : MonoBehaviour, IPointerClickHandler
         RectTransform currentPanel = panels[currentPanelIndex];
         currentPanel.gameObject.SetActive(true);
 
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFXOneShot("SFX_slide");
+        }
+
         // ใช้ LeanTween เลื่อน panel กลับมาที่เดิม
         LeanTween.move(currentPanel, originalPositions[currentPanelIndex], 0.6f)
             .setEase(LeanTweenType.easeOutBack) // มีเด้งนิดๆ ตอนจบให้ดูสวยงาม
@@ -134,6 +139,10 @@ public class UIStoryIntro : MonoBehaviour, IPointerClickHandler
     {
         isReadyToDismiss = false;
         gameObject.SetActive(true);
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFXOneShot("HUD_combo_3");
+        }
         onCompleteCallback?.Invoke();
     }
 }

@@ -86,6 +86,9 @@ public static class GameFontController
         gameFont = TMP_FontAsset.CreateFontAsset(sourceFont);
         gameFont.name = "Yazo SDF";
         gameFont.atlasPopulationMode = AtlasPopulationMode.Dynamic;
+        gameFont.material.EnableKeyword("OUTLINE_ON");
+        gameFont.material.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.4f);
+        gameFont.material.SetColor(ShaderUtilities.ID_OutlineColor, Color.black);
     }
 
     private static void EnsureCountdownFont()
@@ -105,5 +108,8 @@ public static class GameFontController
         countdownFont = TMP_FontAsset.CreateFontAsset(sourceFont);
         countdownFont.name = "FreeCheese Countdown SDF";
         countdownFont.atlasPopulationMode = AtlasPopulationMode.Dynamic;
+        countdownFont.material.EnableKeyword("OUTLINE_ON");
+        countdownFont.material.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.4f);
+        countdownFont.material.SetColor(ShaderUtilities.ID_OutlineColor, Color.black);
     }
 }
