@@ -148,6 +148,8 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private bool battleEnded;
     private float timeRemaining;
     private int lastBeepTime = -1;
+    private float blinkTimer = 0f;
+    private bool hpBlinkState = false;
     private float cpuMoveTimer;
     private float nextNavigationTime;
     private int cursorRow;
@@ -489,6 +491,19 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         }
 
         timeRemaining -= Time.deltaTime;
+        
+        blinkTimer += Time.deltaTime;
+        if (blinkTimer >= 0.3f)
+        {
+            blinkTimer = 0f;
+            hpBlinkState = !hpBlinkState;
+            if ((player != null && levelConfig != null && player.Health < levelConfig.healthCap * 0.5f) ||
+                (cpu != null && cpu.Health < bossHealthCap * 0.5f))
+            {
+                UpdateHud();
+            }
+        }
+
         if (timeRemaining > 0f && timeRemaining <= 3f)
         {
             int currentSecond = Mathf.CeilToInt(timeRemaining);
@@ -1024,21 +1039,46 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         PlayScoreAnimation(owner);
 
         int blueBlockCount = 0;
+        HashSet<OrbType> matchedColors = new HashSet<OrbType>();
+        
         foreach (OrbView orb in matches)
         {
             if (orb.Type == OrbType.Blue)
             {
                 blueBlockCount++;
                 owner.Pending[(int)OrbType.Blue] += 1;
-                owner.StoredTime += Mathf.RoundToInt(levelConfig.timePerBlueOrb);
+                
+                int timeAdded = Mathf.RoundToInt(levelConfig.timePerBlueOrb);
+                if (owner == cpu)
+                {
+                    int maxCpuTime = 2; // Capped at exactly 2 seconds
+                    if (owner.StoredTime < maxCpuTime)
+                    {
+                        owner.StoredTime = Mathf.Min(maxCpuTime, owner.StoredTime + timeAdded);
+                    }
+                }
+                else
+                {
+                    owner.StoredTime += timeAdded;
+                }
             }
             else
             {
-                owner.Pending[(int)orb.Type] += chain;
+                owner.Pending[(int)orb.Type] += 1;
+                matchedColors.Add(orb.Type);
             }
 
             // Cascades may clear frozen cells even though the player cannot swap them.
             orb.LockedPlayerTurns = 0;
+        }
+
+        if (chain > 1)
+        {
+            int flatBonus = chain - 1;
+            foreach (OrbType type in matchedColors)
+            {
+                owner.Pending[(int)type] += flatBonus;
+            }
         }
 
         if (owner == player && bossController != null && bossController.IsActive)
@@ -1850,11 +1890,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
         yield return ScaleBoard(Vector3.one * 0.12f, Vector3.one, 0.24f);
         yield return new WaitForSeconds(0.55f);
 
-        timeRemaining = turnDuration;
         cpuMoveTimer = GetCpuInitialDelay();
         UpdateTimer();
         HideAntiStuckOverlay();
-        hud.SetMessage("BOARD READY! TIMER RESET.");
+        hud.SetMessage("BOARD READY!");
         reshuffling = false;
         boardBusy = false;
         RefreshSelectionFrames();
@@ -2134,16 +2173,24 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     {
         playerPanel.SetName(player.Name);
         enemyPanel.SetName(cpu.Name);
+        
+        string playerHpColor = (player.Health < levelConfig.healthCap * 0.5f && hpBlinkState) ? "<color=red>" : "<color=white>";
+        string cpuHpColor = (cpu.Health < bossHealthCap * 0.5f && hpBlinkState) ? "<color=red>" : "<color=white>";
+
         playerPanel.SetStats(
-            $"HP {player.Health}/{levelConfig.healthCap}   NEXT +{player.StoredTime}s\n" +
-            $"SH {player.Shield}   SP {player.Special}/{levelConfig.specialBurstThreshold}" +
-            (IsFreePlay ? $"   KILLS {killScore}" : ""));
+            $"{playerHpColor}HP {player.Health}/{levelConfig.healthCap}</color>\n" +
+            $"<color=yellow>Shield {player.Shield}</color>\n" +
+            $"SP {player.Special}/{levelConfig.specialBurstThreshold}\n" +
+            $"NEXT +{player.StoredTime}s" +
+            (IsFreePlay ? $"\nKILLS {killScore}" : ""));
         enemyPanel.SetStats(
-            $"HP {cpu.Health}/{bossHealthCap}   NEXT +{cpu.StoredTime}s\n" +
-            $"SH {cpu.Shield}   SP {cpu.Special}/{levelConfig.specialBurstThreshold}" +
+            $"{cpuHpColor}HP {cpu.Health}/{bossHealthCap}</color>\n" +
+            $"<color=yellow>Shield {cpu.Shield}</color>\n" +
+            $"SP {cpu.Special}/{levelConfig.specialBurstThreshold}\n" +
+            $"NEXT +{cpu.StoredTime}s" +
             (IsFreePlay
-                ? $"   ATK +{enemyAttackBonus}"
-                : $"   {enemyDifficulty.ToString().ToUpper()}") +
+                ? $"\nATK +{enemyAttackBonus}"
+                : $"\n{enemyDifficulty.ToString().ToUpper()}") +
             (bossController != null && bossController.IsActive
                 ? $"\n{bossController.GetStatusText()}"
                 : ""));
