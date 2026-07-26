@@ -34,7 +34,7 @@ public class UIBattleResultSlider : MonoBehaviour
     {
         resultSlider.value = 0f;
         float elapsed = 0f;
-        float duration = 0.25f;
+        float duration = 0.6f;
 
         while (elapsed < duration)
         {

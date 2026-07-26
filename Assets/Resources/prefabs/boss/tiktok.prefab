@@ -105,7 +105,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8653719598885068355, guid: 9e8073c819e500347bbba60f5d6b650c, type: 3}
       propertyPath: m_Name
-      value: boss4
+      value: tiktok
       objectReference: {fileID: 0}
     - target: {fileID: -7552582706839291426, guid: 9e8073c819e500347bbba60f5d6b650c, type: 3}
       propertyPath: m_LocalPosition.x
@@ -301,6 +301,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: -8653719598885068355, guid: 9e8073c819e500347bbba60f5d6b650c, type: 3}
       insertIndex: -1
       addedObject: {fileID: 3444316459399851277}
+    - targetCorrespondingSourceObject: {fileID: -8653719598885068355, guid: 9e8073c819e500347bbba60f5d6b650c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -990373764359906692}
     - targetCorrespondingSourceObject: {fileID: 8609620701930462729, guid: 9e8073c819e500347bbba60f5d6b650c, type: 3}
       insertIndex: -1
       addedObject: {fileID: 3652610392109091841}
@@ -332,6 +335,20 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &-990373764359906692
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 44095411014334069}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a97474b8cb091b94990f58750f861b0b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CharacterAnim
+  idleAnimationName: boss4
+  attackAnimationName: boss4_attack
 --- !u!4 &3235656809507782162 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3142452527999330778, guid: 9e8073c819e500347bbba60f5d6b650c, type: 3}
