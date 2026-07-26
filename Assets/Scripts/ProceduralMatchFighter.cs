@@ -2286,7 +2286,7 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private void RefreshOrb(OrbView orb)
     {
         orb.Image.sprite = orbSprites[(int)orb.Type];
-        orb.Image.color = Color.white;
+        orb.Image.color = orb.LockedPlayerTurns > 0 ? new Color(0.5f, 0.8f, 1f, 1f) : Color.white;
         orb.Rect.localScale = Vector3.one;
     }
 }
