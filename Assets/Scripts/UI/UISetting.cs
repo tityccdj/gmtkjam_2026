@@ -36,4 +36,11 @@ public class UISetting : MonoBehaviour
         backButton.AddClickSound();
         backButton.onClick.AddListener(() => param.onBack?.Invoke());
     }
+
+    public void Show()
+    {
+        gameObject.SetActive(true);
+        UIUtils.EnsureSelectionFeedback(transform);
+        mainVolumeSlider.SelectForNavigation();
+    }
 }

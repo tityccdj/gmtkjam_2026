@@ -822,10 +822,15 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
     private static bool AnyStartPressed()
     {
 #if ENABLE_INPUT_SYSTEM
-        return Keyboard.current != null && 
-               (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.numpadEnterKey.wasPressedThisFrame);
+        bool keyboard = Keyboard.current != null &&
+                        (Keyboard.current.enterKey.wasPressedThisFrame ||
+                         Keyboard.current.numpadEnterKey.wasPressedThisFrame);
+        bool gamepad = Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame;
+        return keyboard || gamepad;
 #else
-        return Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
+        return Input.GetKeyDown(KeyCode.Return) ||
+               Input.GetKeyDown(KeyCode.KeypadEnter) ||
+               Input.GetKeyDown(KeyCode.JoystickButton0);
 #endif
     }
 
@@ -887,6 +892,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
                 if (Keyboard.current.dKey.isPressed) input.x += 1f;
                 if (Keyboard.current.sKey.isPressed) input.y -= 1f;
                 if (Keyboard.current.wKey.isPressed) input.y += 1f;
+                if (Keyboard.current.leftArrowKey.isPressed) input.x -= 1f;
+                if (Keyboard.current.rightArrowKey.isPressed) input.x += 1f;
+                if (Keyboard.current.downArrowKey.isPressed) input.y -= 1f;
+                if (Keyboard.current.upArrowKey.isPressed) input.y += 1f;
             }
             else
             {
@@ -916,6 +925,10 @@ public sealed class ProceduralMatchFighter : MonoBehaviour
             if (Input.GetKey(KeyCode.D)) x += 1f;
             if (Input.GetKey(KeyCode.S)) y -= 1f;
             if (Input.GetKey(KeyCode.W)) y += 1f;
+            if (Input.GetKey(KeyCode.LeftArrow)) x -= 1f;
+            if (Input.GetKey(KeyCode.RightArrow)) x += 1f;
+            if (Input.GetKey(KeyCode.DownArrow)) y -= 1f;
+            if (Input.GetKey(KeyCode.UpArrow)) y += 1f;
         }
         else
         {

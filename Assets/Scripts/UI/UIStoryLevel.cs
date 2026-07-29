@@ -63,7 +63,11 @@ public class UIStoryLevel : MonoBehaviour
         }
     }
 
-    public void SlideIn() => slidePanel.SlideIn();
+    public void SlideIn()
+    {
+        slidePanel.SlideIn();
+        UIUtils.SelectFirstInteractable(levelsContainer, backButton);
+    }
 
     public void SlideOut(Action onComplete = null) => slidePanel.SlideOut(onComplete);
 }

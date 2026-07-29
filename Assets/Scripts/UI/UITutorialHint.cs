@@ -27,6 +27,7 @@ public class UITutorialHint : MonoBehaviour
         titleText.text = title;
         bodyText.text = body;
         gameObject.SetActive(true);
+        dismissButton.SelectForNavigation();
     }
 
     public void Hide()

@@ -17,4 +17,10 @@ public class UITutorial : MonoBehaviour
         backButton.AddClickSound();
         backButton.onClick.AddListener(() => param.OnBack?.Invoke());
     }
+
+    public void Show()
+    {
+        gameObject.SetActive(true);
+        backButton.SelectForNavigation();
+    }
 }

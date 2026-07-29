@@ -1,6 +1,9 @@
 using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 public class UIStoryIntro : MonoBehaviour, IPointerClickHandler
 {
@@ -38,6 +41,12 @@ public class UIStoryIntro : MonoBehaviour, IPointerClickHandler
     {
         onCompleteCallback = onComplete;
         gameObject.SetActive(true);
+        if (EventSystem.current != null)
+        {
+            // Prevent Enter/A from also submitting the level button underneath
+            // the full-screen story overlay.
+            EventSystem.current.SetSelectedGameObject(null);
+        }
         currentPanelIndex = 0;
         isReadyToDismiss = false;
         isAnimating = false;
@@ -108,7 +117,7 @@ public class UIStoryIntro : MonoBehaviour, IPointerClickHandler
 
     void Update()
     {
-        if (Input.anyKeyDown)
+        if (SubmitPressed())
         {
             HandleInput();
         }
@@ -133,6 +142,21 @@ public class UIStoryIntro : MonoBehaviour, IPointerClickHandler
             // โชว์ Panel ถัดไป
             ShowNextPanel();
         }
+    }
+
+    private static bool SubmitPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        bool keyboard = Keyboard.current != null &&
+                        (Keyboard.current.enterKey.wasPressedThisFrame ||
+                         Keyboard.current.numpadEnterKey.wasPressedThisFrame);
+        bool gamepad = Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame;
+        return keyboard || gamepad;
+#else
+        return Input.GetKeyDown(KeyCode.Return) ||
+               Input.GetKeyDown(KeyCode.KeypadEnter) ||
+               Input.GetKeyDown(KeyCode.JoystickButton0);
+#endif
     }
 
     private void Dismiss()

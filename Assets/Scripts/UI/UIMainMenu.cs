@@ -36,7 +36,13 @@ public class UIMainMenu : MonoBehaviour
         versionText.text = $"V {param.version}";
     }
 
-    public void SlideIn() => slidePanel.SlideIn();
+    public void SlideIn()
+    {
+        slidePanel.SlideIn();
+        FocusDefault();
+    }
 
     public void SlideOut(Action onComplete = null) => slidePanel.SlideOut(onComplete);
+
+    public void FocusDefault() => playButton.SelectForNavigation();
 }

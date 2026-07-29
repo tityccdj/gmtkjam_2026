@@ -35,7 +35,11 @@ public class UIMode : MonoBehaviour
         backButton.onClick.AddListener(() => param.onBack?.Invoke());
     }
 
-    public void SlideIn() => slidePanel.SlideIn();
+    public void SlideIn()
+    {
+        slidePanel.SlideIn();
+        storyModeButton.SelectForNavigation();
+    }
 
     public void SlideOut(Action onComplete = null) => slidePanel.SlideOut(onComplete);
 }

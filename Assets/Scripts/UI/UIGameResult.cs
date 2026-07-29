@@ -55,6 +55,18 @@ public class UIGameResult : MonoBehaviour
     public void Show()
     {
         gameObject.SetActive(true);
+        if (nextLevelButton != null && nextLevelButton.gameObject.activeInHierarchy)
+        {
+            nextLevelButton.SelectForNavigation();
+        }
+        else if (tryAgainButton != null && tryAgainButton.gameObject.activeInHierarchy)
+        {
+            tryAgainButton.SelectForNavigation();
+        }
+        else
+        {
+            mainMenuButton.SelectForNavigation();
+        }
     }
 
     public void Hide()

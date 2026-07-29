@@ -36,8 +36,8 @@ public class Title : MonoBehaviour
         uiMainMenu.Setup(new UIMainMenu.Param
         {
             onPlay = () => uiMainMenu.SlideOut(() => uiMode.SlideIn()),
-            onSetting = () => uiMainMenu.SlideOut(() => uiSetting.gameObject.SetActive(true)),
-            onTutorial = () => uiTutorial.gameObject.SetActive(true),
+            onSetting = () => uiMainMenu.SlideOut(() => uiSetting.Show()),
+            onTutorial = () => uiTutorial.Show(),
             onExit = () => Application.Quit(),
             version = Application.version,
         });
@@ -115,6 +115,7 @@ public class Title : MonoBehaviour
             {
                 uiTutorial.gameObject.SetActive(false);
                 uiMainMenu.gameObject.SetActive(true);
+                uiMainMenu.FocusDefault();
             }
         });
         uiSetting.gameObject.SetActive(false);

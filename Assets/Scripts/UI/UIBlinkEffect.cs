@@ -38,13 +38,19 @@ public class UIBlinkEffect : MonoBehaviour
     private bool IsEnterPressed()
     {
 #if ENABLE_INPUT_SYSTEM
+        if (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame)
+        {
+            return true;
+        }
         if (Keyboard.current != null)
         {
             return Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.numpadEnterKey.wasPressedThisFrame;
         }
         return false;
 #else
-        return Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
+        return Input.GetKeyDown(KeyCode.Return) ||
+               Input.GetKeyDown(KeyCode.KeypadEnter) ||
+               Input.GetKeyDown(KeyCode.JoystickButton0);
 #endif
     }
 }

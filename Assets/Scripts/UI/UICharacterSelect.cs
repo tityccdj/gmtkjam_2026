@@ -96,7 +96,11 @@ public class UICharacterSelect : MonoBehaviour
         }
     }
 
-    public void SlideIn() => slidePanel.SlideIn();
+    public void SlideIn()
+    {
+        slidePanel.SlideIn();
+        UIUtils.SelectFirstInteractable(charactersContainer, backButton);
+    }
 
     public void SlideOut(Action onComplete = null) => slidePanel.SlideOut(onComplete);
 }
